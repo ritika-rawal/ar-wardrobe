@@ -2,7 +2,7 @@
 
 Living checklist. Update after each meaningful change. Plan reference: `~/.claude/plans/developing-an-ar-powered-virtual-purring-crane.md`.
 
-## Status: Phase 5 (body-wrapping mesh renderer + real PNG seed garments) complete — browser/phone test pass still needed
+## Status: Phase 6 (real garment photos + AR precision + camera capture) complete — browser/phone test pass still needed
 
 ### Done
 - [x] Project scaffold: `server/` (Express) + `client/` (React + Vite + Tailwind)
@@ -135,6 +135,40 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   canvas or report `naturalWidth=0` in some browsers — real PNGs are the correct source.
 - [x] Verified `npm run build` still passes at 116 modules after all Phase 5 changes.
 
+### Phase 6 — real garment photos + AR precision + camera capture (this session)
+- [x] **Real flat-lay garment photos** (`server/assets/*.png`): replaced all illustrated SVG-generated
+  PNGs with real clothing photographs. Pipeline: `server/scripts/download-real-garments.mjs` downloads
+  Unsplash flat-lays; `server/scripts/process-user-garments.mjs` accepts user-supplied photos; both
+  run **adaptive BFS flood-fill** background removal (corner-sample to detect BG colour, flood-expand
+  from border with 45-unit per-channel tolerance, `sharp` trim+contain to 512×768 canvas). User
+  supplied 5 real product photos: navy/white/black t-shirts + blue/black jeans — all background-
+  removed and AR-ready. Seed trimmed to these 5 items; hoodie/jacket/sneaker assets deleted.
+- [x] **WebGL shader fix**: vertex shader was missing `precision mediump float;` declaration, causing
+  the program link to fail ("Precisions of uniform `u_resolution` differ") and forcing the 2D fallback
+  on all devices. Fixed — WebGL mesh path now active by default.
+- [x] **Garment anchor recalibration** (`client/src/ar/garmentAnchors.js`): `LAYER_IMAGE_ANCHORS`
+  re-tuned for real flat-lay proportions (garment centred in canvas, ~25% transparent padding top and
+  bottom). Shoulder anchors moved from `y=0.08` → `y=0.30`; hip anchors from `y=0.72` → `y=0.65`.
+- [x] **Neck anchor / collar ceiling** (`garmentAnchors.js` + `webglRenderer.js`): garment collar was
+  riding up over the neck and face because the homography extrapolated image rows above the shoulder
+  landmarks onto the chin. Fixed with `getCollarCeilingY()`: derives a ceiling as
+  `shoulderMidY − 0.18 × shoulderWidth` (landmark-driven, scales with camera distance), then clamps
+  every mesh vertex's Y to `max(y, ceiling)` in `buildMesh`. Only applied to `top`/`outerwear`.
+- [x] **Elbow/wrist sleeve bending** (`webglRenderer.js`): `getArmPoints()` in `garmentAnchors.js`
+  returns shoulder/elbow/wrist screen positions (gated on `visibility > 0.35`). In `buildMesh`, outer
+  sleeve columns (top half of mesh) are offset toward the shoulder→elbow direction, blended by
+  proximity to the corner × row height × raise-factor (`-ny`, how far the arm is raised from down).
+  Direction refined with elbow→wrist vector when available. Offset clamped to 35% of shoulder width
+  to prevent noise flings; absent/low-vis landmarks fall back to pure homography.
+- [x] **Camera garment capture** (`client/src/components/GarmentCapture.jsx`, new): "📷 Capture from
+  camera" button on the Closet page opens a modal with its own lightweight webcam (no pose model).
+  Flow: **live feed → tap Capture → BFS BG removal via `@imgly/background-removal` → checkerboard
+  preview → name/category/color form → save**. Color is **auto-detected** by `getDominantColor()`
+  (`client/src/ar/dominantColor.js`, new) — averages non-transparent pixels, maps mean RGB to a
+  13-entry named palette. Cutout is saved as both `imageUrl` and `tryOnAssetUrl` (single upload,
+  no second removal pass) — item lands in closet **immediately AR-ready**.
+- [x] Verified `npm run build` passes (118 modules) after all Phase 6 changes.
+
 ### Known limitations (by design, for the few-day timeline)
 - **Perf tradeoff (untested on a real device yet):** always-on segmentation + WebGL perspective is
   the heaviest the app has been on the GPU. Mitigated by the existing ~24fps pose-detection
@@ -152,34 +186,14 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
 - No automated test suite yet — verification so far is manual curl + Vite module-transform checks (no browser automation tool available in this environment).
 
 ### Next up
-- [ ] **Manual in-browser test pass on desktop (user, not yet done)**: open http://localhost:5173,
-  log in as `demo@demo.com` / `demo1234`, select a top + bottom in Try-On. Specifically for this
-  session's work: **lean/twist your torso** and confirm the garment shears/foreshortens instead of
-  staying a flat rectangle (perspective warp); **cross your arms** and confirm the garment is
-  clipped to your silhouette, not bleeding past it (occlusion) — if it looks inverted (visible
-  where your body *isn't*), see the fragment-shader note under "Known limitations"; stand still vs.
-  move quickly and confirm smoothing feels steady-then-responsive, not jittery-or-laggy (One-Euro);
-  try a "bottom" item while only chest-up is in frame and confirm pants still render (knee
-  extrapolation fallback). Then the existing checks: fit sliders, flip-camera, snapshot+save,
-  Recommendations + My Outfits.
-- [ ] **Force the 2D fallback path once** (e.g. spoof `WebGL is not available` by temporarily
-  throwing in `createGLRenderer`, or test in a browser/profile with WebGL disabled) and confirm
-  Try-On still renders a garment overlay instead of nothing.
-- [ ] **Manual in-browser test pass on a real phone (user, not yet done)**: camera access needs a
-  secure context, so plain `http://<lan-ip>:5173` will NOT work on a phone — either open the dev
-  server via `localhost` on the device itself, or tunnel it over HTTPS (e.g. `ngrok http 5173`).
-  Beyond the desktop checks above, this is also where to judge whether the always-on segmentation +
-  perspective WebGL rendering holds an acceptable frame rate on real (especially low-end) phone
-  hardware — confirm: front camera by default + mirrored; flip switches to rear + un-mirrors;
-  portrait stage fits a full body when held vertically; walk every page at 375px width with no
-  horizontal scroll and comfortably tappable controls.
-- [ ] **Anchor fine-tuning after visual test**: `LAYER_IMAGE_ANCHORS` in `garmentAnchors.js` was
-  designed to match the new PNG proportions, but the exact shoulder/hip pixel positions in the
-  generated PNGs should be verified against the live AR overlay — adjust per-category x/y values
-  if garments are mis-positioned after the test pass.
-- [ ] **Mobile test via tunnel**: camera access needs a secure context — use `ngrok http 5173` to
-  get an HTTPS URL for the phone. Check: front camera + mirroring, portrait aspect ratio, frame
-  rate with full model + mesh renderer on real phone hardware.
+- [ ] **AR alignment fine-tune**: with real flat-lay photos now loaded, visually verify the collar
+  sits at the base of the neck (not the face) and shoulder seams land on the actual shoulders.
+  Adjust `LAYER_IMAGE_ANCHORS` y-values in `garmentAnchors.js` by ±0.03–0.05 if off.
+- [ ] **Camera capture test**: open Closet → "📷 Capture from camera", point at a real garment on
+  a plain background, confirm the cutout is clean and the item appears as AR-ready in the closet
+  grid. Then go to Try-On and try it on — should work with no extra steps.
+- [ ] **Mobile test via tunnel**: camera needs HTTPS on phones — `ngrok http 5173`. Verify front
+  camera default, flip works, portrait aspect ratio, frame rate with full MediaPipe + WebGL mesh.
 - [ ] FYP write-up: architecture diagram, screenshots, README expansion.
 
 ## How to run locally
