@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client.js';
 import ClothingCard from '../components/ClothingCard.jsx';
 import UploadForm from '../components/UploadForm.jsx';
+import GarmentCapture from '../components/GarmentCapture.jsx';
 import { cutOutGarment } from '../ar/backgroundRemoval.js';
 import EditItemModal from '../components/EditItemModal.jsx';
 import CardGridSkeleton from '../components/CardGridSkeleton.jsx';
@@ -18,6 +19,7 @@ export default function Closet() {
   const [busy, setBusy] = useState(false);
   const [processingIds, setProcessingIds] = useState(new Set());
   const [editingItem, setEditingItem] = useState(null);
+  const [showCapture, setShowCapture] = useState(false);
 
   async function loadItems() {
     setLoading(true);
@@ -104,6 +106,12 @@ export default function Closet() {
       <div className="md:col-span-1">
         <UploadForm onSubmit={handleUpload} busy={busy} />
         {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+        <button
+          onClick={() => setShowCapture(true)}
+          className="mt-3 w-full min-h-[44px] bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg"
+        >
+          📷 Capture from camera
+        </button>
       </div>
 
       <div className="md:col-span-2">
@@ -177,6 +185,13 @@ export default function Closet() {
           item={editingItem}
           onSave={handleEditSave}
           onClose={() => setEditingItem(null)}
+        />
+      )}
+
+      {showCapture && (
+        <GarmentCapture
+          onSaved={(newItem) => setItems((prev) => [newItem, ...prev])}
+          onClose={() => setShowCapture(false)}
         />
       )}
     </div>
