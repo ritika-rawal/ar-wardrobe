@@ -61,12 +61,13 @@ export default function Outfits() {
               ) : (
                 <div className="w-full h-48 bg-slate-100 flex flex-wrap items-center justify-center gap-1 p-2">
                   {outfit.itemIds.map((item) => (
-                    <img
-                      key={item._id}
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="w-14 h-14 object-cover rounded"
-                    />
+                    <div key={item._id} className="w-14 h-14 bg-slate-200 rounded overflow-hidden flex items-center justify-center">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   ))}
                 </div>
               )}
