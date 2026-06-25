@@ -46,6 +46,39 @@ function toPx(lm, w, h) {
   return lm ? { x: lm.x * w, y: lm.y * h } : null;
 }
 
+// Returns the Y-coordinate of the collar ceiling for tops/outerwear: the highest the garment mesh
+// top may reach, so the collar never climbs onto the neck or chin. Derived from shoulder landmarks
+// (no neck landmark in the 33-point MediaPipe model) — the ceiling sits one neck-length above the
+// shoulder midpoint, scaled to shoulder width so it adapts as the user moves closer/farther.
+// Returns null if landmarks are insufficient.
+export function getCollarCeilingY(landmarks, canvasW, canvasH) {
+  const ls = toPx(landmarks[LANDMARK.LEFT_SHOULDER], canvasW, canvasH);
+  const rs = toPx(landmarks[LANDMARK.RIGHT_SHOULDER], canvasW, canvasH);
+  if (!ls || !rs) return null;
+  const shoulderWidth = distPts(ls, rs);
+  const midY = (ls.y + rs.y) / 2;
+  // 0.18 × shoulderWidth ≈ one neck-height; collar ceiling sits just above the shoulder centre.
+  return midY - shoulderWidth * 0.18;
+}
+
+// Returns the screen-pixel elbow and wrist points for a given side ('left'/'right'), or null if
+// the landmark is missing/low-visibility. Used by the renderer for sleeve bending.
+export function getArmPoints(landmarks, side, canvasW, canvasH) {
+  const elbowKey = side === 'left' ? LANDMARK.LEFT_ELBOW  : LANDMARK.RIGHT_ELBOW;
+  const wristKey = side === 'left' ? LANDMARK.LEFT_WRIST  : LANDMARK.RIGHT_WRIST;
+  const shldrKey = side === 'left' ? LANDMARK.LEFT_SHOULDER : LANDMARK.RIGHT_SHOULDER;
+  const elbow = landmarks[elbowKey];
+  const wrist = landmarks[wristKey];
+  const shoulder = landmarks[shldrKey];
+  // Require reasonable visibility; MediaPipe visibility is 0–1.
+  const ok = (lm) => lm && (lm.visibility ?? 1) > 0.35;
+  return {
+    shoulder: ok(shoulder) ? toPx(shoulder, canvasW, canvasH) : null,
+    elbow:    ok(elbow)    ? toPx(elbow,    canvasW, canvasH) : null,
+    wrist:    ok(wrist)    ? toPx(wrist,    canvasW, canvasH) : null,
+  };
+}
+
 // Bottoms anchor to hips+knees, but a typical desk webcam frames chest-up — knees are very
 // often out of shot. Rather than letting bottoms silently disappear, extrapolate a
 // knee-equivalent point by continuing the shoulder->hip line further down.
