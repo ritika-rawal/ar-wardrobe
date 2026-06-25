@@ -14,24 +14,27 @@ export const LAYER_LANDMARKS = {
 // (0..1, x right / y down) — same order as LAYER_LANDMARKS. These four correspondence points are
 // what both the WebGL perspective warp (exact homography) and the 2D fallback (approximated
 // translate+rotate+scale) are built from, so the two renderers stay visually consistent.
+// Anchor positions calibrated for real flat-lay product photos (512×768):
+// garment is vertically centred in the canvas with ~25% transparent padding top and bottom.
+// top of garment ≈ y=0.25, shoulders ≈ y=0.30, hips ≈ y=0.65, hem ≈ y=0.75.
 export const LAYER_IMAGE_ANCHORS = {
   top: [
-    { x: 0.8, y: 0.08 }, // left shoulder
-    { x: 0.2, y: 0.08 }, // right shoulder
-    { x: 0.28, y: 0.72 }, // right hip
-    { x: 0.72, y: 0.72 }, // left hip
+    { x: 0.78, y: 0.30 }, // left shoulder
+    { x: 0.22, y: 0.30 }, // right shoulder
+    { x: 0.28, y: 0.65 }, // right hip
+    { x: 0.72, y: 0.65 }, // left hip
   ],
   outerwear: [
-    { x: 0.85, y: 0.06 },
-    { x: 0.15, y: 0.06 },
-    { x: 0.22, y: 0.82 },
-    { x: 0.78, y: 0.82 },
+    { x: 0.82, y: 0.27 }, // left shoulder (outerwear sits slightly wider)
+    { x: 0.18, y: 0.27 }, // right shoulder
+    { x: 0.22, y: 0.72 }, // right hip
+    { x: 0.78, y: 0.72 }, // left hip
   ],
   bottom: [
-    { x: 0.78, y: 0.06 }, // left hip
-    { x: 0.22, y: 0.06 }, // right hip
-    { x: 0.3, y: 0.92 }, // right knee
-    { x: 0.7, y: 0.92 }, // left knee
+    { x: 0.76, y: 0.30 }, // left hip (waistband sits at ~30% of canvas)
+    { x: 0.24, y: 0.30 }, // right hip
+    { x: 0.30, y: 0.68 }, // right knee
+    { x: 0.70, y: 0.68 }, // left knee
   ],
 };
 
