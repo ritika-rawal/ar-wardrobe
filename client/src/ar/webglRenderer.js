@@ -14,6 +14,7 @@ const SILHOUETTE_BLEND = 0.75;
 const MASK_THRESHOLD = 0.4;
 
 const VERTEX_SRC = `
+precision mediump float;
 attribute vec2 a_position;
 attribute vec3 a_texCoordW;
 attribute float a_shade;
