@@ -6,7 +6,9 @@ export default function ClothingCard({ item, onDelete, onEdit, selectable, selec
       } ${selectable ? 'cursor-pointer' : ''}`}
       onClick={selectable ? () => onToggleSelect(item) : undefined}
     >
-      <img src={item.imageUrl} alt={item.name} className="w-full h-40 object-cover" />
+      <div className="w-full h-40 bg-slate-100 flex items-center justify-center overflow-hidden">
+        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-contain" />
+      </div>
       {processing && (
         <div className="absolute top-1 right-1 bg-slate-900/80 text-white text-xs px-2 py-1 rounded">
           ✨ Preparing AR cutout...

@@ -121,11 +121,13 @@ export default function Recommendations() {
                 <div className="flex gap-3 flex-wrap">
                   {outfit.items.map((item) => (
                     <div key={item._id} className="text-center">
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="w-20 h-20 object-cover rounded"
-                      />
+                      <div className="w-20 h-20 bg-slate-100 rounded overflow-hidden flex items-center justify-center">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                       <p className="text-xs mt-1">{item.name}</p>
                     </div>
                   ))}
@@ -133,6 +135,7 @@ export default function Recommendations() {
                 <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <Link
                     to="/try-on"
+                    state={{ preselect: outfit.items.map((i) => i._id) }}
                     className="min-h-[44px] flex items-center text-sm text-indigo-600 hover:underline"
                   >
                     Try this on in AR →
