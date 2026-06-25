@@ -62,7 +62,7 @@ export default function TryOn() {
         <h1 className="text-2xl font-semibold mb-4">Live AR Try-On</h1>
         <p className="text-sm text-slate-500 mb-4">
           Select a top, bottom, and/or outerwear from your closet on the right, then allow webcam
-          access. Garments are overlaid live, tracked to your shoulders and hips.
+          access. Garments are tracked to your body in real time and wrap around your silhouette.
         </p>
         <WebcamAR selectedItems={selected} fit={{ scale, yOffset }} onSnapshot={setSnapshot} />
 

@@ -90,10 +90,10 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const [facingMode, setFacingMode] = useState('user');
   const [switchingCamera, setSwitchingCamera] = useState(false);
   const [aspect, setAspect] = useState(4 / 3);
-  const [showDebug, setShowDebug] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
   const [usingGL, setUsingGL] = useState(true); // optimistic default; corrected once init resolves
   const [occlusionEnabled, setOcclusionEnabled] = useState(true);
-  const showDebugRef = useRef(true);
+  const showDebugRef = useRef(false);
   useEffect(() => {
     showDebugRef.current = showDebug;
   }, [showDebug]);
