@@ -1,38 +1,173 @@
-# AR-Powered Virtual Wardrobe
+# AR Virtual Wardrobe — FYP
 
-A final-year project: organize your closet digitally, try on clothes live with webcam AR, and get
-weather + preference-aware outfit recommendations.
+A full-stack web application that lets you organize your wardrobe digitally, **try on clothes live
+using webcam AR**, and receive weather-aware outfit recommendations. Built as a Final Year Project
+demonstrating real-time computer vision in a production-quality web app — no native app, no paid
+services, no API keys required.
 
-See `PROGRESS.md` for current build status and `~/.claude/plans/developing-an-ar-powered-virtual-purring-crane.md`
-for the full design plan.
+---
 
-## Stack
-- **Frontend:** React + Vite + Tailwind, MediaPipe `tasks-vision` for pose tracking
-- **Backend:** Node + Express + Mongoose
-- **DB:** MongoDB — auto-falls back to an in-memory instance if `MONGO_URI` isn't set, so it runs
-  with zero installs
-- **Weather:** Open-Meteo (free, no API key)
+## Features
 
-Everything used is free — no paid services, no API keys required to run the demo.
+| Module | What it does |
+|--------|-------------|
+| **Digital Closet** | Upload garments (any photo), organize by category / color / season / warmth. Background removal runs in-browser (no server cost, no API key) to produce a clean cutout for the AR overlay. |
+| **Live AR Try-On** | MediaPipe pose tracking drives a WebGL perspective mesh that wraps garments around your body silhouette in real time. Works on desktop and mobile (front camera by default). |
+| **Smart Recommendations** | Open-Meteo weather API (free, no key) + rule-based outfit engine suggests looks matched to current conditions and your saved style preferences. |
+| **My Outfits** | Save AR snapshot + outfit combo to revisit or share. |
 
-## Running locally
+---
+
+## AR pipeline (the core contribution)
+
+```
+Webcam frame
+  └─► MediaPipe PoseLandmarker (full model, ~24 fps)
+        ├─ 33 body landmarks → One-Euro filter (velocity-adaptive smoothing)
+        └─ Segmentation mask (Float32Array, person silhouette)
+              │
+              ▼
+        garmentAnchors.js
+          Maps 4 body landmarks (shoulders + hips/knees) → 4 points
+          inside the garment image (pre-calibrated per category)
+              │
+              ▼
+        homography.js (quadToQuad)
+          Projective H maps garment image → body quad
+              │
+              ▼
+        webglRenderer.js  (WebGL2, GPU)
+          16×10 vertex mesh:
+            1. Each vertex baseline  ← applyH(H, {u, v})
+            2. Silhouette conform    ← scan mask row, blend 75% toward body edge
+            3. Cylindrical shading   ← sin(u·π) shade factor per column (static buffer)
+            4. Texture UV            ← asin cylinder remap (perspective-correct /w)
+            5. Alpha occlusion       ← mask sampled in screen-space (garment clips to body)
+              │
+              ▼
+        Rendered over live video  (separate canvas elements — WebGL + 2D fallback)
+```
+
+The 2D fallback (`garmentRenderer.js`) kicks in automatically on browsers/devices without WebGL
+and uses the same anchor correspondence points so the visual output is consistent.
+
+---
+
+## Tech stack
+
+| Layer | Choice | Why |
+|-------|--------|-----|
+| Frontend | React + Vite + Tailwind | Fast iteration, mobile-first utility classes |
+| AR | MediaPipe `tasks-vision` (WASM + GPU delegate) | Free, runs entirely in browser |
+| Renderer | WebGL2 + 2D Canvas fallback | Perspective-correct UV, no three.js overhead |
+| Background removal | `@imgly/background-removal` (browser WASM) | Zero server cost, no API key |
+| Backend | Node + Express | Simple JSON API, multipart upload via multer |
+| Database | MongoDB / `mongodb-memory-server` | Auto in-memory DB on first boot — zero install |
+| Weather | Open-Meteo REST API | Completely free, no key |
+
+---
+
+## Quick start
 
 ```bash
-# Terminal 1 — backend
+# Terminal 1 — backend (auto-starts in-memory MongoDB)
 cd server
 npm install
-npm run dev          # http://localhost:5000
+npm run dev          # → http://localhost:5000
 
 # Terminal 2 — frontend
 cd client
 npm install
-npm run dev          # http://localhost:5173
+npm run dev          # → http://localhost:5173
 ```
 
-Open http://localhost:5173 and register an account.
+Open **http://localhost:5173** — a demo account is auto-seeded on first boot:
+
+| Field | Value |
+|-------|-------|
+| Email | `demo@demo.com` |
+| Password | `demo1234` |
+
+The demo wardrobe has 8 pre-cut garments (tops, outerwear, bottoms, shoes) ready for AR try-on
+with no extra setup.
+
+### Persistent database (optional)
+
+Set `MONGO_URI` in `server/.env` (copy `server/.env.example`) to connect to a real MongoDB
+instance instead of the in-memory default. The in-memory DB resets on every server restart.
+
+### Mobile testing
+
+Camera access requires a secure context. Plain `http://<lan-ip>:5173` will be **blocked** on
+phones. Use ngrok or similar:
+
+```bash
+ngrok http 5173   # then open the https:// URL on your phone
+```
+
+---
 
 ## Project structure
+
 ```
-server/    Express API, MongoDB models, auth, wardrobe CRUD, weather + recommendations
-client/    React app — closet, AR try-on, recommendations, profile
+server/
+  index.js              Express entry — CORS, static /uploads + /assets, route mount
+  db.js                 MongoDB connect (real or in-memory auto-fallback)
+  models/               Mongoose schemas — User, ClothingItem, Outfit
+  routes/               auth, wardrobe, outfits, recommend
+  services/
+    seedData.js         Auto-seeds demo account on first boot
+    recommendService.js Rule-based outfit engine (weather × warmth × user prefs)
+    weatherService.js   Open-Meteo wrapper
+  assets/               Seed garment PNGs (generated by scripts/generate-seed-pngs.js)
+  scripts/
+    generate-seed-pngs.js  Generates transparent flat-lay PNGs via sharp + SVG
+
+client/src/
+  ar/
+    poseTracker.js      MediaPipe PoseLandmarker — full model, GPU→CPU fallback, mask output
+    oneEuroFilter.js    Velocity-adaptive landmark smoother (prevents jitter without lag)
+    homography.js       Quad-to-quad projective transform (Heckbert unit-square method)
+    garmentAnchors.js   Per-category image anchor coords + dest-quad from live landmarks
+    webglRenderer.js    16×10 mesh warp + silhouette conform + cylindrical shading (WebGL)
+    garmentRenderer.js  2D canvas fallback renderer (same anchor correspondence)
+    backgroundRemoval.js  Wraps @imgly/background-removal for client-side cutout
+  components/
+    WebcamAR.jsx        Camera + pose loop + dual-canvas render + snapshot + debug overlay
+    ClothingCard.jsx    Grid card (selectable in try-on, edit/delete in closet)
+    UploadForm.jsx      Garment upload form with AR-hint copy
+    EditItemModal.jsx   Inline edit for name/category/color/seasons
+    Navbar.jsx          Responsive nav with mobile hamburger
+    ToastContext.jsx    Global toast notifications
+  pages/
+    TryOn.jsx           AR try-on page — garment picker + fit sliders + save-look flow
+    Closet.jsx          Wardrobe grid + upload + filter + background-removal pipeline
+    Recommendations.jsx Weather + location → outfit suggestions → link to try-on
+    Outfits.jsx         Saved looks gallery
+    Profile.jsx         Style and color preferences
 ```
+
+---
+
+## AR accuracy notes
+
+- **Pose model**: `pose_landmarker_full` (higher accuracy than `lite`, heavier first load).
+  MediaPipe model/WASM loads from CDN on first use then caches — requires internet on first run.
+- **Silhouette conform**: pulls the garment mesh edges toward the person mask at each row height,
+  so the garment follows actual body width (shoulders wider than waist, waist narrower than hips).
+- **Occlusion**: garment alpha is multiplied by the segmentation mask in screen space, so clothing
+  clips to the body outline and doesn't bleed past it.
+- **Smoothing**: One-Euro filter keeps the overlay stable when stationary and responsive when
+  moving, without the sliding-in lag of a fixed exponential average.
+- **Bottoms in chest-up framing**: knee landmarks are usually off-screen with a desk webcam.
+  The renderer extrapolates a synthetic knee by continuing the shoulder→hip vector, so
+  pants/skirts still render without requiring a full-body shot.
+
+## Known limitations
+
+- AR is keypoint-anchored perspective warp with silhouette occlusion — a big step up from a flat
+  sticker, but not physical cloth simulation (no fabric drape, fold physics, or wrinkle mapping).
+- Performance on low-end phones hasn't been measured. The `full` pose model + mesh renderer is the
+  heaviest combination; there is an automatic WebGL→2D fallback but no lite-model fallback.
+- No automated test suite — verification is manual + `npm run build` passing.
+- Auth is bare minimum: no email verification, no password reset, no refresh tokens.
