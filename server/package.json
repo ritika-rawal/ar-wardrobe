@@ -14,7 +14,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
-    "multer": "^2.0.0"
+    "multer": "^2.0.0",
+    "sharp": "^0.35.2"
   },
   "devDependencies": {
     "mongodb-memory-server": "^10.0.0"
