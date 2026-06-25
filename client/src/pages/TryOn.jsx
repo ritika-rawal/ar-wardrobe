@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api/client.js';
 import ClothingCard from '../components/ClothingCard.jsx';
 import WebcamAR from '../components/WebcamAR.jsx';
@@ -7,6 +8,7 @@ import { useToast } from '../context/ToastContext.jsx';
 
 export default function TryOn() {
   const toast = useToast();
+  const { state: routerState } = useLocation();
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,8 +21,17 @@ export default function TryOn() {
   useEffect(() => {
     api
       .get('/wardrobe')
-      .then((res) => setItems(res.data.items))
+      .then((res) => {
+        const all = res.data.items;
+        setItems(all);
+        // Pre-select items passed from Recommendations page
+        if (routerState?.preselect?.length) {
+          const ids = new Set(routerState.preselect);
+          setSelected(all.filter((i) => ids.has(i._id)));
+        }
+      })
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleSelect(item) {
