@@ -1,5 +1,13 @@
 import { quadToQuad, applyH } from './homography.js';
-import { LAYER_IMAGE_ANCHORS, getLayer, getDestQuadPx, applyFitToQuad } from './garmentAnchors.js';
+import {
+  LAYER_IMAGE_ANCHORS,
+  getLayer,
+  getDestQuadPx,
+  applyFitToQuad,
+  getCollarCeilingY,
+  getArmPoints,
+} from './garmentAnchors.js';
+import { LANDMARK } from './poseTracker.js';
 
 // Mesh resolution: dense enough that the silhouette-conform step (below) reads as a smooth body
 // contour rather than a stepped outline, sparse enough to stay trivial on a GPU (~270 triangles).
@@ -256,9 +264,11 @@ export function createGLRenderer(canvas) {
   const scratchBaselineY = new Float32Array(GRID_COLS);
   const scratchBaselineW = new Float32Array(GRID_COLS);
 
-  // Builds the full garment mesh for one frame: per-row homography baseline, then pulled toward
-  // the live body silhouette (mask permitting), then packed into the scratch buffers.
-  function buildMesh(H, mask, canvasW, canvasH) {
+  // Builds the full garment mesh for one frame.
+  // Steps: homography baseline → silhouette conform → collar ceiling clamp → sleeve bend.
+  // collarCeilingY: highest Y the top rows may reach (null = unclamped, used for bottoms).
+  // leftArm / rightArm: { shoulder, elbow, wrist } in canvas-px (any field may be null).
+  function buildMesh(H, mask, canvasW, canvasH, collarCeilingY, leftArm, rightArm) {
     for (let r = 0; r < GRID_ROWS; r++) {
       const v = GRID.vForRow[r];
       let xMinBaseline = Infinity;
@@ -274,6 +284,8 @@ export function createGLRenderer(canvas) {
       }
 
       const rowYCanvas = (scratchBaselineY[0] + scratchBaselineY[GRID_COLS - 1]) / 2;
+
+      // Silhouette conform: pull outer edges toward body mask edges.
       const edges = findSilhouetteEdges(mask, canvasW, canvasH, xMinBaseline, xMaxBaseline, rowYCanvas);
       let xMinFinal = xMinBaseline;
       let xMaxFinal = xMaxBaseline;
@@ -286,12 +298,63 @@ export function createGLRenderer(canvas) {
       for (let c = 0; c < GRID_COLS; c++) {
         const idx = r * GRID_COLS + c;
         const t = spanBaseline > 1e-3 ? (scratchBaselineX[c] - xMinBaseline) / spanBaseline : 0;
-        const finalX = xMinFinal + t * (xMaxFinal - xMinFinal);
-        const w = scratchBaselineW[c];
+        let finalX = xMinFinal + t * (xMaxFinal - xMinFinal);
+        let finalY = scratchBaselineY[c];
 
-        scratchPositions[idx * 2] = finalX;
-        scratchPositions[idx * 2 + 1] = scratchBaselineY[c];
-        scratchTexCoordW[idx * 3] = GRID.uTexForCol[c] * w;
+        // Collar ceiling clamp: prevents the top of the garment from crawling onto the face.
+        // Clamps Y upward (screen-Y increases downward, so max() keeps vertices below ceiling).
+        if (collarCeilingY !== null) {
+          finalY = Math.max(finalY, collarCeilingY);
+        }
+
+        // Sleeve bending: offset outer-column vertices in the top half of the mesh toward the
+        // user's elbow/wrist direction, weighted by how close they are to the sleeve corner and
+        // how far the arm is raised from its resting (hanging-down) position.
+        if (v < 0.55) {
+          // Left sleeve: rightmost columns in image-space (large c) correspond to the user's left
+          // arm (image is mirrored in a front-facing webcam).
+          const arm = c >= GRID_COLS - 3 ? leftArm : (c <= 2 ? rightArm : null);
+          if (arm && arm.shoulder && arm.elbow) {
+            // Direction from shoulder toward elbow (normalised).
+            const dx = arm.elbow.x - arm.shoulder.x;
+            const dy = arm.elbow.y - arm.shoulder.y;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            const nx = dx / len, ny = dy / len;
+
+            // Refine direction with wrist if available (more accurate when arm is raised).
+            let dirX = nx, dirY = ny;
+            if (arm.wrist && arm.elbow) {
+              const wx = arm.wrist.x - arm.elbow.x;
+              const wy = arm.wrist.y - arm.elbow.y;
+              const wl = Math.sqrt(wx * wx + wy * wy) || 1;
+              // Blend shoulder→elbow and elbow→wrist directions 50/50.
+              dirX = (nx + wx / wl) * 0.5;
+              dirY = (ny + wy / wl) * 0.5;
+              const dl = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+              dirX /= dl; dirY /= dl;
+            }
+
+            // Raise factor: how much the arm is lifted above the resting (straight-down) position.
+            // ny negative means elbow is above shoulder — arm is raised.
+            const raiseFactor = Math.max(0, -ny); // 0 when arm hangs down, →1 when raised sideways
+
+            // Proximity weight: strongest at outermost column (c=0 or c=COLS-1), fades inward.
+            const colDist = c >= GRID_COLS - 3 ? (c - (GRID_COLS - 3)) / 2 : (2 - c) / 2;
+            const rowWeight = 1 - v / 0.55; // strongest at the very top (v=0)
+            const weight = colDist * rowWeight * raiseFactor;
+
+            // Max offset = half the shoulder width to prevent extreme distortion.
+            const maxOffset = (xMaxBaseline - xMinBaseline) * 0.35;
+            const offset = Math.min(weight * len * 0.6, maxOffset);
+            finalX += dirX * offset;
+            finalY += dirY * offset;
+          }
+        }
+
+        const w = scratchBaselineW[c];
+        scratchPositions[idx * 2]     = finalX;
+        scratchPositions[idx * 2 + 1] = finalY;
+        scratchTexCoordW[idx * 3]     = GRID.uTexForCol[c] * w;
         scratchTexCoordW[idx * 3 + 1] = v * w;
         scratchTexCoordW[idx * 3 + 2] = w;
       }
@@ -312,7 +375,13 @@ export function createGLRenderer(canvas) {
     const fittedQuad = applyFitToQuad(destQuad, fit);
     const H = quadToQuad(LAYER_IMAGE_ANCHORS[getLayer(layer)], fittedQuad);
 
-    buildMesh(H, mask, canvasW, canvasH);
+    // Collar ceiling and arm points only matter for tops/outerwear, not bottoms.
+    const isTorso = layer === 'top' || layer === 'outerwear';
+    const collarCeilingY = isTorso ? getCollarCeilingY(landmarks, canvasW, canvasH) : null;
+    const leftArm  = isTorso ? getArmPoints(landmarks, 'left',  canvasW, canvasH) : null;
+    const rightArm = isTorso ? getArmPoints(landmarks, 'right', canvasW, canvasH) : null;
+
+    buildMesh(H, mask, canvasW, canvasH, collarCeilingY, leftArm, rightArm);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, scratchPositions, gl.DYNAMIC_DRAW);
