@@ -2,7 +2,7 @@
 
 Living checklist. Update after each meaningful change. Plan reference: `~/.claude/plans/developing-an-ar-powered-virtual-purring-crane.md`.
 
-## Status: Phase 6 (real garment photos + AR precision + camera capture) complete — browser/phone test pass still needed
+## Status: Phase 7 (shadcn/ui + Lucide icon system) complete — polish pass in progress (areas 2-5 pending)
 
 ### Done
 - [x] Project scaffold: `server/` (Express) + `client/` (React + Vite + Tailwind)
@@ -169,6 +169,30 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   no second removal pass) — item lands in closet **immediately AR-ready**.
 - [x] Verified `npm run build` passes (118 modules) after all Phase 6 changes.
 
+### Phase 7 — shadcn/ui + Lucide icon system (this session, Area 1 of 5)
+- [x] **Foundation**: installed `lucide-react`, `sonner`, `clsx`, `tailwind-merge`, `cva`,
+  `tailwindcss-animate`, all Radix UI packages. Added `@` path alias in `vite.config.js` +
+  `jsconfig.json`. Created `components.json` and `src/lib/utils.js` (`cn()`).
+- [x] **CSS variables + theme**: rewrote `src/index.css` with full shadcn `:root`/`.dark` variable
+  block (slate base). Updated `tailwind.config.js` to map `theme.extend.colors` to
+  `hsl(var(--…))` variables, added `tailwindcss-animate` plugin and `darkMode: ['class']`.
+- [x] **shadcn primitives**: created `src/components/ui/`: `button`, `card`, `badge`, `dialog`,
+  `select`, `slider`, `skeleton`, `separator`, `checkbox`, `input`, `label`, `sonner` (12 files).
+- [x] **Toast → Sonner adapter**: replaced the custom `ToastContext.jsx` timeout/portal
+  implementation with a thin Sonner wrapper — `ToastProvider` now mounts `<Toaster richColors />`
+  and `useToast()` returns `{ success, error, info }` mapped to Sonner calls. All 6 caller files
+  (`Closet`, `TryOn`, `Recommendations`, `Profile`, `Outfits`, `GarmentCapture`) unchanged.
+- [x] **Component migrations**: `ClothingCard` → `<Card>` + `<Badge>` + `<Button variant="ghost"
+  size="icon">`; `UploadForm` → `<Input>/<Select>/<Checkbox>/<Slider>/<Button>`; `EditItemModal`
+  → `<Dialog>` replacing the hand-rolled fixed overlay; `Navbar` → `<Button asChild><Link>` +
+  `<Separator>`; `CardGridSkeleton` → shadcn `<Skeleton>`; `TryOn` fit sliders → `<Slider>` +
+  `<Card>`.
+- [x] **Emoji → Lucide**: replaced all 18 emoji icon usages across 7 files: `Shirt`, `Camera`,
+  `Sparkles`, `Pencil`, `Trash2`, `Menu`, `X`, `Save`, `Check`, `MapPin`, `CloudRain`, `Wind`,
+  `CloudSun`, `Loader2`, `RefreshCw`, `Bug`, `User`, `Plus`. Frozen AR pipeline files untouched.
+- [x] Build passes at 1955 modules (up from 118). `npm run build` clean (chunk-size warning is
+  expected — Radix UI adds weight; no functional issue).
+
 ### Known limitations (by design, for the few-day timeline)
 - **Perf tradeoff (untested on a real device yet):** always-on segmentation + WebGL perspective is
   the heaviest the app has been on the GPU. Mitigated by the existing ~24fps pose-detection
@@ -185,16 +209,17 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
 - Auth is intentionally bare-minimum: no email verification, no refresh tokens, no password reset.
 - No automated test suite yet — verification so far is manual curl + Vite module-transform checks (no browser automation tool available in this environment).
 
-### Next up
-- [ ] **AR alignment fine-tune**: with real flat-lay photos now loaded, visually verify the collar
-  sits at the base of the neck (not the face) and shoulder seams land on the actual shoulders.
-  Adjust `LAYER_IMAGE_ANCHORS` y-values in `garmentAnchors.js` by ±0.03–0.05 if off.
-- [ ] **Camera capture test**: open Closet → "📷 Capture from camera", point at a real garment on
-  a plain background, confirm the cutout is clean and the item appears as AR-ready in the closet
-  grid. Then go to Try-On and try it on — should work with no extra steps.
-- [ ] **Mobile test via tunnel**: camera needs HTTPS on phones — `ngrok http 5173`. Verify front
-  camera default, flip works, portrait aspect ratio, frame rate with full MediaPipe + WebGL mesh.
-- [ ] FYP write-up: architecture diagram, screenshots, README expansion.
+### Next up (polish pass — 4 areas remaining)
+- [ ] **Area 2 — Wardrobe management UX**: name search, filter pills (replace dropdowns), multi-
+  select + bulk delete, empty state.
+- [ ] **Area 3 — Camera capture improvements**: framing guide overlay, tips panel, auto-capture
+  with stability detection, brightness/blur quality hints.
+- [ ] **Area 4 — Recommendations improvements**: auto-load on mount via geolocation/IP fallback,
+  occasion filter pills, re-roll button with outfit shuffle, "mark as worn" flow.
+- [ ] **Area 5 — General polish**: onboarding Dialog (3-step, first login only), PWA manifest +
+  minimal service worker, React ErrorBoundary, AR snapshot share button, 404 page.
+- [ ] **Manual browser test**: confirm shadcn components render correctly (cards, badges, dialogs,
+  sliders, sonner toasts), no layout regressions vs pre-migration.
 
 ## How to run locally
 ```bash
