@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Check, CloudRain, MapPin, Save, Wind } from 'lucide-react';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function Recommendations() {
   const toast = useToast();
@@ -76,79 +80,81 @@ export default function Recommendations() {
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">Smart Recommendations</h1>
 
-      <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
-        <button
-          onClick={handleUseLocation}
-          className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
-        >
-          📍 Use my location
-        </button>
-        <span className="text-slate-400 text-center sm:text-left">or</span>
-        <form onSubmit={handleCitySubmit} className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Enter a city"
-            className="border rounded px-3 py-2 min-h-[44px] flex-1"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-          />
-          <button type="submit" className="min-h-[44px] bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded">
-            Go
-          </button>
-        </form>
-      </div>
+      <Card className="mb-6">
+        <CardContent className="pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <Button onClick={handleUseLocation} className="gap-2">
+              <MapPin className="h-4 w-4" />
+              Use my location
+            </Button>
+            <span className="text-muted-foreground text-center sm:text-left">or</span>
+            <form onSubmit={handleCitySubmit} className="flex gap-2 flex-1">
+              <Input
+                type="text"
+                placeholder="Enter a city"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" variant="secondary">Go</Button>
+            </form>
+          </div>
+        </CardContent>
+      </Card>
 
-      {loading && <p className="text-slate-500">Fetching weather and building outfits...</p>}
-      {error && <p className="text-red-600">{error}</p>}
+      {loading && <p className="text-muted-foreground">Fetching weather and building outfits…</p>}
+      {error && <p className="text-destructive">{error}</p>}
 
       {data && (
         <div>
-          <div className="bg-white p-4 rounded-lg shadow mb-6">
-            <p className="font-medium">{data.location}</p>
-            <p className="text-slate-600">
-              {Math.round(data.weather.tempC)}°C · {data.weather.condition}
-              {data.weather.isRainy ? ' · 🌧️ rain' : ''}
-              {data.weather.isWindy ? ' · 💨 windy' : ''}
-            </p>
-          </div>
+          <Card className="mb-6">
+            <CardContent className="pt-4">
+              <p className="font-medium">{data.location}</p>
+              <p className="text-muted-foreground flex items-center gap-2 flex-wrap mt-1">
+                <span>{Math.round(data.weather.tempC)}°C · {data.weather.condition}</span>
+                {data.weather.isRainy && <span className="flex items-center gap-1"><CloudRain className="h-4 w-4" /> rain</span>}
+                {data.weather.isWindy && <span className="flex items-center gap-1"><Wind className="h-4 w-4" /> windy</span>}
+              </p>
+            </CardContent>
+          </Card>
 
-          {data.message && <p className="text-slate-500 mb-4">{data.message}</p>}
+          {data.message && <p className="text-muted-foreground mb-4">{data.message}</p>}
 
           <div className="space-y-4">
             {data.outfits.map((outfit, i) => (
-              <div key={i} className="bg-white p-4 rounded-lg shadow">
-                <p className="text-sm text-slate-500 mb-2">{outfit.why}</p>
-                <div className="flex gap-3 flex-wrap">
-                  {outfit.items.map((item) => (
-                    <div key={item._id} className="text-center">
-                      <div className="w-20 h-20 bg-slate-100 rounded overflow-hidden flex items-center justify-center">
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="w-full h-full object-contain"
-                        />
+              <Card key={i}>
+                <CardContent className="pt-4">
+                  <p className="text-sm text-muted-foreground mb-3">{outfit.why}</p>
+                  <div className="flex gap-3 flex-wrap">
+                    {outfit.items.map((item) => (
+                      <div key={item._id} className="text-center">
+                        <div className="w-20 h-20 bg-muted rounded overflow-hidden flex items-center justify-center">
+                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-contain" />
+                        </div>
+                        <p className="text-xs mt-1">{item.name}</p>
                       </div>
-                      <p className="text-xs mt-1">{item.name}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                  <Link
-                    to="/try-on"
-                    state={{ preselect: outfit.items.map((i) => i._id) }}
-                    className="min-h-[44px] flex items-center text-sm text-indigo-600 hover:underline"
-                  >
-                    Try this on in AR →
-                  </Link>
-                  <button
-                    onClick={() => handleSaveOutfit(outfit, i)}
-                    disabled={savedIndexes.has(i)}
-                    className="min-h-[44px] text-left text-sm text-slate-600 hover:underline disabled:text-green-600 disabled:no-underline"
-                  >
-                    {savedIndexes.has(i) ? '✓ Saved to My Outfits' : '💾 Save outfit'}
-                  </button>
-                </div>
-              </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/try-on" state={{ preselect: outfit.items.map((item) => item._id) }}>
+                        Try this on in AR →
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSaveOutfit(outfit, i)}
+                      disabled={savedIndexes.has(i)}
+                      className="gap-2"
+                    >
+                      {savedIndexes.has(i)
+                        ? <><Check className="h-4 w-4 text-green-600" /> Saved</>
+                        : <><Save className="h-4 w-4" /> Save outfit</>}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>

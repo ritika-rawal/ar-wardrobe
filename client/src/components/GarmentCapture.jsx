@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { Camera, Check, Loader2, RefreshCw, Save } from 'lucide-react';
 import { cutOutGarment } from '../ar/backgroundRemoval.js';
 import { getDominantColor } from '../ar/dominantColor.js';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 const CATEGORIES = ['top', 'bottom', 'outerwear', 'shoes', 'accessory'];
 
@@ -13,15 +18,13 @@ function describeError(err) {
   return err?.message || 'Could not start camera.';
 }
 
-// Checkerboard CSS background to visualise transparency in the preview.
 const CHECKER = 'repeating-conic-gradient(#e2e8f0 0% 25%, #f8fafc 0% 50%) 0 0 / 20px 20px';
 
 export default function GarmentCapture({ onSaved, onClose }) {
   const toast = useToast();
 
-  // 'live' | 'processing' | 'preview' | 'saving'
   const [phase, setPhase] = useState('live');
-  const [facingMode, setFacingMode] = useState('environment'); // rear camera better for garments
+  const [facingMode, setFacingMode] = useState('environment');
   const [camError, setCamError] = useState('');
   const [switchingCam, setSwitchingCam] = useState(false);
 
@@ -29,14 +32,12 @@ export default function GarmentCapture({ onSaved, onClose }) {
   const streamRef = useRef(null);
   const workingFacingRef = useRef('environment');
 
-  // Preview state
   const [cutoutUrl, setCutoutUrl] = useState('');
   const [cutoutBlob, setCutoutBlob] = useState(null);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('top');
   const [color, setColor] = useState('');
 
-  // Start / restart camera whenever facingMode changes.
   useEffect(() => {
     let stopped = false;
 
@@ -64,18 +65,12 @@ export default function GarmentCapture({ onSaved, onClose }) {
     }
 
     if (phase === 'live') start();
-
-    return () => {
-      stopped = true;
-    };
+    return () => { stopped = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facingMode, phase]);
 
-  // Stop camera when we leave the live phase or the modal unmounts.
   useEffect(() => {
-    return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
+    return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
   }, []);
 
   async function handleCapture() {
@@ -86,18 +81,11 @@ export default function GarmentCapture({ onSaved, onClose }) {
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
-
-    // Un-mirror front camera so the stored image is the correct orientation.
-    if (facingMode === 'user') {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
+    if (facingMode === 'user') { ctx.translate(w, 0); ctx.scale(-1, 1); }
     ctx.drawImage(video, 0, 0, w, h);
 
-    // Stop camera now — no longer needed after capture.
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-
     setPhase('processing');
 
     try {
@@ -112,7 +100,7 @@ export default function GarmentCapture({ onSaved, onClose }) {
       setPhase('preview');
     } catch (err) {
       toast.error('Background removal failed: ' + (err.message || err));
-      setPhase('live'); // restart camera
+      setPhase('live');
     }
   }
 
@@ -129,7 +117,6 @@ export default function GarmentCapture({ onSaved, onClose }) {
     if (!name.trim()) { toast.error('Please enter a name for this item.'); return; }
     setPhase('saving');
     try {
-      // 1. Create the wardrobe item using the cutout as the display image.
       const fd = new FormData();
       fd.append('image', cutoutBlob, 'capture.png');
       fd.append('name', name.trim());
@@ -139,13 +126,9 @@ export default function GarmentCapture({ onSaved, onClose }) {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const item = data.item;
+      const updated = await api.put(`/wardrobe/${item._id}`, { tryOnAssetUrl: item.imageUrl });
 
-      // 2. Mark the same stored image as the AR try-on asset (no extra upload).
-      const updated = await api.put(`/wardrobe/${item._id}`, {
-        tryOnAssetUrl: item.imageUrl,
-      });
-
-      toast.success(`"${item.name}" added — AR-ready ✨`);
+      toast.success(`"${item.name}" added — AR-ready`);
       URL.revokeObjectURL(cutoutUrl);
       onSaved?.(updated.data.item);
       onClose?.();
@@ -156,34 +139,31 @@ export default function GarmentCapture({ onSaved, onClose }) {
   }
 
   const mirrored = facingMode === 'user';
+  const isLive = phase === 'live' || phase === 'processing';
 
   return (
-    // Backdrop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-lg font-semibold">
-            {phase === 'live' && '📷 Capture garment'}
-            {phase === 'processing' && '⏳ Removing background…'}
-            {phase === 'preview' && '✅ Preview & save'}
-            {phase === 'saving' && '💾 Saving…'}
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            {phase === 'live' && <><Camera className="h-5 w-5" /> Capture garment</>}
+            {phase === 'processing' && <><Loader2 className="h-5 w-5 animate-spin" /> Removing background…</>}
+            {phase === 'preview' && <><Check className="h-5 w-5 text-green-600" /> Preview &amp; save</>}
+            {phase === 'saving' && <><Save className="h-5 w-5" /> Saving…</>}
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 text-2xl leading-none"
+            className="text-muted-foreground hover:text-foreground text-2xl leading-none"
             aria-label="Close"
           >
             ×
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-5 space-y-4">
 
-          {/* ── Live camera ── */}
-          {(phase === 'live' || phase === 'processing') && (
+          {isLive && (
             <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
               <video
                 ref={videoRef}
@@ -194,8 +174,11 @@ export default function GarmentCapture({ onSaved, onClose }) {
               />
               {phase === 'processing' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60">
-                  <div className="h-10 w-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                  <p className="text-white text-sm">Removing background…<br /><span className="text-white/60 text-xs">First run may take a moment</span></p>
+                  <Loader2 className="h-10 w-10 text-white animate-spin" />
+                  <p className="text-white text-sm text-center">
+                    Removing background…<br />
+                    <span className="text-white/60 text-xs">First run may take a moment</span>
+                  </p>
                 </div>
               )}
               {camError && (
@@ -206,101 +189,99 @@ export default function GarmentCapture({ onSaved, onClose }) {
             </div>
           )}
 
-          {/* ── Camera controls ── */}
           {phase === 'live' && (
             <div className="flex gap-3">
-              <button
+              <Button
                 onClick={handleCapture}
                 disabled={!!camError || switchingCam}
-                className="flex-1 min-h-[48px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-medium rounded-lg"
+                className="flex-1 gap-2"
               >
-                📸 Capture
-              </button>
-              <button
+                <Camera className="h-4 w-4" />
+                Capture
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 onClick={() => setFacingMode((m) => (m === 'user' ? 'environment' : 'user'))}
                 disabled={switchingCam}
-                className="min-h-[48px] px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40"
                 title="Flip camera"
               >
-                🔄
-              </button>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
           )}
 
-          {/* ── Preview ── */}
           {(phase === 'preview' || phase === 'saving') && (
             <>
               <div
                 className="w-full aspect-square rounded-lg overflow-hidden flex items-center justify-center"
                 style={{ background: CHECKER }}
               >
-                <img
-                  src={cutoutUrl}
-                  alt="cutout preview"
-                  className="max-w-full max-h-full object-contain"
-                />
+                <img src={cutoutUrl} alt="cutout preview" className="max-w-full max-h-full object-contain" />
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
-                  <input
+                  <Label className="mb-1">Name *</Label>
+                  <Input
                     type="text"
                     placeholder="e.g. White linen shirt"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 min-h-[44px] text-sm"
                     autoFocus
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                  <Label className="mb-1">Category</Label>
                   <div className="flex flex-wrap gap-2">
                     {CATEGORIES.map((c) => (
                       <button
                         key={c}
                         onClick={() => setCategory(c)}
-                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                          category === c
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
-                        }`}
+                        className="focus:outline-none"
                       >
-                        {c}
+                        <Badge
+                          variant={category === c ? 'default' : 'outline'}
+                          className="cursor-pointer capitalize hover:bg-primary/10 transition-colors"
+                        >
+                          {c}
+                        </Badge>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Color <span className="text-slate-400 font-normal">(auto-detected, editable)</span>
-                  </label>
-                  <input
+                  <Label className="mb-1">
+                    Color{' '}
+                    <span className="text-muted-foreground font-normal">(auto-detected, editable)</span>
+                  </Label>
+                  <Input
                     type="text"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 min-h-[44px] text-sm"
                   />
                 </div>
               </div>
 
               <div className="flex gap-3 pt-1">
-                <button
+                <Button
+                  variant="outline"
                   onClick={handleRetake}
                   disabled={phase === 'saving'}
-                  className="flex-1 min-h-[48px] border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg disabled:opacity-40"
+                  className="flex-1"
                 >
                   Retake
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSave}
                   disabled={phase === 'saving' || !name.trim()}
-                  className="flex-1 min-h-[48px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-medium rounded-lg"
+                  className="flex-1 gap-2"
                 >
-                  {phase === 'saving' ? 'Saving…' : '💾 Save to closet'}
-                </button>
+                  <Save className="h-4 w-4" />
+                  {phase === 'saving' ? 'Saving…' : 'Save to closet'}
+                </Button>
               </div>
             </>
           )}

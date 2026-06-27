@@ -1,19 +1,22 @@
 import { Link } from 'react-router-dom';
+import { CloudSun, Shirt, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 const FEATURES = [
   {
-    icon: '👕',
+    Icon: Shirt,
     title: 'Digital Closet',
     desc: 'Upload your clothes once and organize them by category, color, season, and warmth.',
   },
   {
-    icon: '🪞',
+    Icon: Sparkles,
     title: 'Live AR Try-On',
     desc: 'See garments overlaid on your live webcam feed, tracked to your body in real time.',
   },
   {
-    icon: '🌦️',
+    Icon: CloudSun,
     title: 'Smart Recommendations',
     desc: "Get outfit suggestions matched to today's weather and your personal style.",
   },
@@ -25,37 +28,39 @@ export default function Home() {
   return (
     <div>
       <div className="max-w-3xl mx-auto mt-16 sm:mt-24 text-center px-4">
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">👗 Virtual Wardrobe</h1>
-        <p className="text-slate-600 text-lg mb-8">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <Shirt className="h-10 w-10 text-indigo-600" />
+          <h1 className="text-4xl sm:text-5xl font-bold">Virtual Wardrobe</h1>
+        </div>
+        <p className="text-muted-foreground text-lg mb-8">
           Organize your closet digitally, try on clothes live with AR, and get smart outfit
           recommendations based on the weather and your style.
         </p>
         {user ? (
-          <Link
-            to="/closet"
-            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg text-lg"
-          >
-            Go to my closet →
-          </Link>
+          <Button asChild size="lg">
+            <Link to="/closet">Go to my closet →</Link>
+          </Button>
         ) : (
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/login" className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg">
-              Log in
-            </Link>
-            <Link to="/register" className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg">
-              Register
-            </Link>
+            <Button asChild size="lg">
+              <Link to="/login">Log in</Link>
+            </Button>
+            <Button asChild size="lg" variant="secondary">
+              <Link to="/register">Register</Link>
+            </Button>
           </div>
         )}
       </div>
 
       <div className="max-w-4xl mx-auto mt-16 px-4 grid grid-cols-1 sm:grid-cols-3 gap-6 pb-16">
-        {FEATURES.map((f) => (
-          <div key={f.title} className="bg-white rounded-lg shadow p-5 text-center">
-            <div className="text-3xl mb-2">{f.icon}</div>
-            <h3 className="font-semibold mb-1">{f.title}</h3>
-            <p className="text-sm text-slate-500">{f.desc}</p>
-          </div>
+        {FEATURES.map(({ Icon, title, desc }) => (
+          <Card key={title} className="text-center">
+            <CardContent className="pt-6">
+              <Icon className="h-8 w-8 mx-auto mb-3 text-indigo-600" />
+              <h3 className="font-semibold mb-1">{title}</h3>
+              <p className="text-sm text-muted-foreground">{desc}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>

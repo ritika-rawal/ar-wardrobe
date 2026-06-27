@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Camera } from 'lucide-react';
 import api from '../api/client.js';
 import ClothingCard from '../components/ClothingCard.jsx';
 import UploadForm from '../components/UploadForm.jsx';
@@ -7,6 +8,7 @@ import { cutOutGarment } from '../ar/backgroundRemoval.js';
 import EditItemModal from '../components/EditItemModal.jsx';
 import CardGridSkeleton from '../components/CardGridSkeleton.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { Button } from '@/components/ui/button';
 
 export default function Closet() {
   const toast = useToast();
@@ -106,12 +108,13 @@ export default function Closet() {
       <div className="md:col-span-1">
         <UploadForm onSubmit={handleUpload} busy={busy} />
         {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-        <button
+        <Button
           onClick={() => setShowCapture(true)}
-          className="mt-3 w-full min-h-[44px] bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg"
+          className="mt-3 w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
         >
-          📷 Capture from camera
-        </button>
+          <Camera className="h-4 w-4" />
+          Capture from camera
+        </Button>
       </div>
 
       <div className="md:col-span-2">

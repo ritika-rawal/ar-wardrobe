@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Bug, Camera, RefreshCw, User } from 'lucide-react';
 import { getPoseLandmarker, detectPose, LANDMARK } from '../ar/poseTracker.js';
 import { LandmarkOneEuro } from '../ar/oneEuroFilter.js';
 import { createGLRenderer } from '../ar/webglRenderer.js';
@@ -364,29 +365,29 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
       <div className="flex flex-wrap gap-3 mt-3">
         <button
           onClick={takeSnapshot}
-          className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+          className="min-h-[44px] inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
         >
-          📸 Take snapshot
+          <Camera className="h-4 w-4" /> Take snapshot
         </button>
         <button
           onClick={handleFlipCamera}
           disabled={switchingCamera}
-          className="min-h-[44px] bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded disabled:opacity-50"
+          className="min-h-[44px] inline-flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded disabled:opacity-50"
         >
-          🔄 Flip camera
+          <RefreshCw className="h-4 w-4" /> Flip camera
         </button>
         <button
           onClick={() => setShowDebug((d) => !d)}
-          className="min-h-[44px] bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"
+          className="min-h-[44px] inline-flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"
         >
-          🐞 {showDebug ? 'Hide' : 'Show'} debug markers
+          <Bug className="h-4 w-4" /> {showDebug ? 'Hide' : 'Show'} debug markers
         </button>
         {showDebug && (
           <button
             onClick={() => setOcclusionEnabled((o) => !o)}
-            className="min-h-[44px] bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"
+            className="min-h-[44px] inline-flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"
           >
-            👤 Occlusion: {occlusionEnabled ? 'on' : 'off'}
+            <User className="h-4 w-4" /> Occlusion: {occlusionEnabled ? 'on' : 'off'}
           </button>
         )}
       </div>
