@@ -62,14 +62,21 @@ router.get('/me', requireAuth, async (req, res) => {
 });
 
 router.put('/me/preferences', requireAuth, async (req, res) => {
-  const { styles, favoriteColors, avoidColors } = req.body.preferences || req.body || {};
-  const user = await User.findByIdAndUpdate(
-    req.userId,
-    { preferences: { styles, favoriteColors, avoidColors } },
-    { new: true }
-  );
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: user.toSafeJSON() });
+  try {
+    const prefs = req.body.preferences || req.body || {};
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const FIELDS = ['styles', 'favoriteColors', 'avoidColors', 'styleVibes', 'occasions'];
+    for (const field of FIELDS) {
+      if (prefs[field] !== undefined) user.preferences[field] = prefs[field];
+    }
+    user.markModified('preferences');
+    await user.save();
+    res.json({ user: user.toSafeJSON() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update preferences', detail: err.message });
+  }
 });
 
 router.patch('/onboarding', requireAuth, async (req, res) => {

@@ -2,9 +2,11 @@ import mongoose from 'mongoose';
 
 const preferencesSchema = new mongoose.Schema(
   {
-    styles: { type: [String], default: [] }, // e.g. ['casual', 'formal', 'sporty']
+    styles: { type: [String], default: [] },
     favoriteColors: { type: [String], default: [] },
     avoidColors: { type: [String], default: [] },
+    styleVibes: { type: [String], default: [] },
+    occasions: { type: [String], default: [] },
   },
   { _id: false }
 );

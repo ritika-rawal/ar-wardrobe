@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import OnboardingDialog from './components/OnboardingDialog.jsx';
+import OnboardingQuiz from './components/OnboardingQuiz.jsx';
 import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
@@ -20,7 +20,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      {user && !user.onboardingComplete && <OnboardingDialog />}
+      {user && !user.onboardingComplete && <OnboardingQuiz />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
