@@ -1,11 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CloudRain, MapPin, Save, Wind } from 'lucide-react';
+import { Check, CheckCheck, CloudRain, MapPin, RefreshCw, Save, Wind } from 'lucide-react';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+
+const OCCASIONS = [
+  { value: '', label: 'Any' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'work', label: 'Work' },
+  { value: 'formal', label: 'Formal' },
+  { value: 'outdoor', label: 'Outdoor' },
+];
 
 export default function Recommendations() {
   const toast = useToast();
@@ -13,17 +22,74 @@ export default function Recommendations() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [occasion, setOccasion] = useState('');
   const [savedIndexes, setSavedIndexes] = useState(new Set());
+  const [savedOutfitIds, setSavedOutfitIds] = useState({});
+  const [wornIndexes, setWornIndexes] = useState(new Set());
+  const lastParamsRef = useRef(null);
 
-  async function fetchByCoords(lat, lon) {
-    const res = await api.get('/recommend', { params: { lat, lon } });
+  async function fetchByCoords(lat, lon, occ = occasion) {
+    const params = { lat, lon };
+    if (occ) params.occasion = occ;
+    lastParamsRef.current = { coords: { lat, lon }, occ };
+    const res = await api.get('/recommend', { params });
     setData(res.data);
+    setSavedIndexes(new Set());
+    setSavedOutfitIds({});
+    setWornIndexes(new Set());
   }
 
-  async function fetchByCity() {
-    const res = await api.get('/recommend', { params: { city } });
+  async function fetchByCity(cityName = city, occ = occasion) {
+    const params = { city: cityName };
+    if (occ) params.occasion = occ;
+    lastParamsRef.current = { city: cityName, occ };
+    const res = await api.get('/recommend', { params });
     setData(res.data);
+    setSavedIndexes(new Set());
+    setSavedOutfitIds({});
+    setWornIndexes(new Set());
   }
+
+  async function autoLoad() {
+    setLoading(true);
+    setError('');
+    if (!navigator.geolocation) {
+      await ipFallback();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await fetchByCoords(pos.coords.latitude, pos.coords.longitude);
+        } catch (err) {
+          await ipFallback();
+        } finally {
+          setLoading(false);
+        }
+      },
+      async () => {
+        await ipFallback();
+      }
+    );
+  }
+
+  async function ipFallback() {
+    try {
+      const geo = await fetch('https://ipapi.co/json/').then((r) => r.json());
+      if (geo.city) {
+        await fetchByCity(geo.city);
+      } else {
+        setError('Could not determine location. Enter a city below.');
+      }
+    } catch {
+      setError('Could not determine location. Enter a city below.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Auto-load on mount
+  useEffect(() => { autoLoad(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleUseLocation() {
     setLoading(true);
@@ -53,9 +119,40 @@ export default function Recommendations() {
     setError('');
     setData(null);
     try {
-      await fetchByCity();
+      await fetchByCity(city.trim());
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch recommendations');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleReroll() {
+    if (!lastParamsRef.current) return;
+    setLoading(true);
+    setError('');
+    try {
+      const p = lastParamsRef.current;
+      if (p.coords) await fetchByCoords(p.coords.lat, p.coords.lon, p.occ);
+      else await fetchByCity(p.city, p.occ);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to fetch recommendations');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOccasionChange(val) {
+    setOccasion(val);
+    if (!lastParamsRef.current) return;
+    setLoading(true);
+    setError('');
+    try {
+      const p = lastParamsRef.current;
+      if (p.coords) await fetchByCoords(p.coords.lat, p.coords.lon, val);
+      else await fetchByCity(p.city, val);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed');
     } finally {
       setLoading(false);
     }
@@ -66,13 +163,26 @@ export default function Recommendations() {
       const formData = new FormData();
       formData.append('name', `Recommended — ${data.weather.condition}, ${Math.round(data.weather.tempC)}°C`);
       formData.append('itemIds', outfit.items.map((i) => i._id).join(','));
-      await api.post('/outfits', formData, {
+      const res = await api.post('/outfits', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSavedIndexes((prev) => new Set(prev).add(index));
+      setSavedOutfitIds((prev) => ({ ...prev, [index]: res.data.outfit._id }));
       toast.success('Saved to My Outfits');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save outfit');
+    }
+  }
+
+  async function handleMarkWorn(index) {
+    const outfitId = savedOutfitIds[index];
+    if (!outfitId) return;
+    try {
+      await api.post(`/outfits/${outfitId}/worn`);
+      setWornIndexes((prev) => new Set(prev).add(index));
+      toast.success('Marked as worn today');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to mark as worn');
     }
   }
 
@@ -105,18 +215,40 @@ export default function Recommendations() {
       {loading && <p className="text-muted-foreground">Fetching weather and building outfits…</p>}
       {error && <p className="text-destructive">{error}</p>}
 
-      {data && (
+      {data && !loading && (
         <div>
-          <Card className="mb-6">
+          {/* Weather summary + re-roll */}
+          <Card className="mb-4">
             <CardContent className="pt-4">
-              <p className="font-medium">{data.location}</p>
-              <p className="text-muted-foreground flex items-center gap-2 flex-wrap mt-1">
-                <span>{Math.round(data.weather.tempC)}°C · {data.weather.condition}</span>
-                {data.weather.isRainy && <span className="flex items-center gap-1"><CloudRain className="h-4 w-4" /> rain</span>}
-                {data.weather.isWindy && <span className="flex items-center gap-1"><Wind className="h-4 w-4" /> windy</span>}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{data.location}</p>
+                  <p className="text-muted-foreground flex items-center gap-2 flex-wrap mt-1 text-sm">
+                    <span>{Math.round(data.weather.tempC)}°C · {data.weather.condition}</span>
+                    {data.weather.isRainy && <span className="flex items-center gap-1"><CloudRain className="h-4 w-4" /> rain</span>}
+                    {data.weather.isWindy && <span className="flex items-center gap-1"><Wind className="h-4 w-4" /> windy</span>}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={handleReroll}>
+                  <RefreshCw className="h-4 w-4" /> Re-roll
+                </Button>
+              </div>
             </CardContent>
           </Card>
+
+          {/* Occasion filter */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            {OCCASIONS.map(({ value, label }) => (
+              <button key={value} onClick={() => handleOccasionChange(value)} className="focus:outline-none">
+                <Badge
+                  variant={occasion === value ? 'default' : 'outline'}
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                >
+                  {label}
+                </Badge>
+              </button>
+            ))}
+          </div>
 
           {data.message && <p className="text-muted-foreground mb-4">{data.message}</p>}
 
@@ -135,10 +267,10 @@ export default function Recommendations() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Button asChild variant="outline" size="sm">
                       <Link to="/try-on" state={{ preselect: outfit.items.map((item) => item._id) }}>
-                        Try this on in AR →
+                        Try in AR →
                       </Link>
                     </Button>
                     <Button
@@ -152,6 +284,19 @@ export default function Recommendations() {
                         ? <><Check className="h-4 w-4 text-green-600" /> Saved</>
                         : <><Save className="h-4 w-4" /> Save outfit</>}
                     </Button>
+                    {savedIndexes.has(i) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleMarkWorn(i)}
+                        disabled={wornIndexes.has(i)}
+                        className="gap-2"
+                      >
+                        {wornIndexes.has(i)
+                          ? <><CheckCheck className="h-4 w-4 text-green-600" /> Worn today</>
+                          : <><CheckCheck className="h-4 w-4" /> Mark as worn</>}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

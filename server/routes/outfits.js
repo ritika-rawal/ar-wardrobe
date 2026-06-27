@@ -42,6 +42,20 @@ router.post('/', upload.single('snapshot'), async (req, res) => {
   }
 });
 
+router.post('/:id/worn', async (req, res) => {
+  try {
+    const outfit = await Outfit.findOne({ _id: req.params.id, userId: req.userId });
+    if (!outfit) return res.status(404).json({ error: 'Outfit not found' });
+    outfit.worn = true;
+    outfit.wornAt = new Date();
+    await outfit.save();
+    const populated = await outfit.populate('itemIds');
+    res.json({ outfit: populated });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark as worn', detail: err.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   const outfit = await Outfit.findOneAndDelete({ _id: req.params.id, userId: req.userId });
   if (!outfit) return res.status(404).json({ error: 'Outfit not found' });

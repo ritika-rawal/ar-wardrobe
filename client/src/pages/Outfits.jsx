@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Clock, Trash2 } from 'lucide-react';
 import api from '../api/client.js';
 import CardGridSkeleton from '../components/CardGridSkeleton.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function Outfits() {
   const toast = useToast();
@@ -19,7 +23,7 @@ export default function Outfits() {
     try {
       const res = await api.get('/outfits');
       setOutfits(res.data.outfits);
-    } catch (err) {
+    } catch {
       setError('Failed to load outfits');
     } finally {
       setLoading(false);
@@ -39,51 +43,52 @@ export default function Outfits() {
       {loading ? (
         <CardGridSkeleton />
       ) : error ? (
-        <p className="text-red-600">{error}</p>
+        <p className="text-destructive">{error}</p>
       ) : outfits.length === 0 ? (
-        <p className="text-slate-500">
+        <p className="text-muted-foreground">
           No saved outfits yet — save a look from{' '}
-          <Link to="/try-on" className="text-indigo-600 hover:underline">
-            Try-On
-          </Link>{' '}
-          or{' '}
-          <Link to="/recommendations" className="text-indigo-600 hover:underline">
-            Recommendations
-          </Link>
-          .
+          <Link to="/try-on" className="text-primary hover:underline">Try-On</Link>
+          {' '}or{' '}
+          <Link to="/recommendations" className="text-primary hover:underline">Recommendations</Link>.
         </p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {outfits.map((outfit) => (
-            <div key={outfit._id} className="bg-white rounded-lg shadow overflow-hidden">
+            <Card key={outfit._id} className="overflow-hidden">
               {outfit.snapshotUrl ? (
                 <img src={outfit.snapshotUrl} alt={outfit.name} className="w-full h-48 object-cover" />
               ) : (
-                <div className="w-full h-48 bg-slate-100 flex flex-wrap items-center justify-center gap-1 p-2">
+                <div className="w-full h-48 bg-muted flex flex-wrap items-center justify-center gap-1 p-2">
                   {outfit.itemIds.map((item) => (
-                    <div key={item._id} className="w-14 h-14 bg-slate-200 rounded overflow-hidden flex items-center justify-center">
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="w-full h-full object-contain"
-                      />
+                    <div key={item._id} className="w-14 h-14 bg-muted-foreground/10 rounded overflow-hidden flex items-center justify-center">
+                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-contain" />
                     </div>
                   ))}
                 </div>
               )}
-              <div className="p-3">
+              <CardContent className="p-3">
                 <p className="font-medium truncate">{outfit.name}</p>
-                <p className="text-sm text-slate-500 truncate">
+                <p className="text-sm text-muted-foreground truncate mb-2">
                   {outfit.itemIds.map((i) => i.name).join(', ')}
                 </p>
-                <button
-                  onClick={() => handleDelete(outfit._id)}
-                  className="mt-2 min-h-[36px] text-sm text-red-600 hover:underline"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+                {outfit.wornAt && (
+                  <Badge variant="outline" className="gap-1 text-xs mb-2">
+                    <Clock className="h-3 w-3" />
+                    Worn {new Date(outfit.wornAt).toLocaleDateString()}
+                  </Badge>
+                )}
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1 text-destructive hover:text-destructive px-0 h-auto"
+                    onClick={() => handleDelete(outfit._id)}
+                  >
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

@@ -11,7 +11,7 @@ router.use(requireAuth);
 // GET /api/recommend?lat=..&lon=..  OR  ?city=..
 router.get('/', async (req, res) => {
   try {
-    const { lat, lon, city } = req.query;
+    const { lat, lon, city, occasion } = req.query;
 
     let coords;
     let locationLabel;
@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
       wardrobe,
       weather,
       preferences: user?.preferences || {},
+      occasion: occasion || '',
     });
 
     if (outfits.length === 0) {
