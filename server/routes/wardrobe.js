@@ -2,6 +2,7 @@ import express from 'express';
 import ClothingItem, { CLOTHING_CATEGORIES, CLOTHING_SEASONS } from '../models/ClothingItem.js';
 import { requireAuth } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
+import { autoTagItem } from '../services/autoTagService.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -73,6 +74,28 @@ router.post('/:id/try-on-asset', upload.single('image'), async (req, res) => {
     res.json({ item });
   } catch (err) {
     res.status(500).json({ error: 'Failed to save AR cutout', detail: err.message });
+  }
+});
+
+router.post('/:id/auto-tag', async (req, res) => {
+  try {
+    const item = await ClothingItem.findOne({ _id: req.params.id, userId: req.userId });
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    const tags = await autoTagItem(item);
+    if (!tags) return res.json({ item }); // no-op when API key absent
+
+    const VALID_CATS = ['top', 'bottom', 'outerwear', 'shoes', 'accessory'];
+    if (tags.color) item.color = tags.color;
+    if (tags.category && VALID_CATS.includes(tags.category)) item.category = tags.category;
+    if (tags.warmth) item.warmth = Math.min(5, Math.max(1, Number(tags.warmth)));
+    if (Array.isArray(tags.style_tags)) item.styleTags = tags.style_tags;
+    item.autoTagged = true;
+    await item.save();
+
+    res.json({ item });
+  } catch (err) {
+    res.status(500).json({ error: 'Auto-tag failed', detail: err.message });
   }
 });
 

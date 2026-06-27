@@ -86,12 +86,24 @@ export default function Closet() {
       await loadItems();
       toast.success(`Added "${res.data.item.name}" to your closet`);
       processBackgroundRemoval(res.data.item._id, file);
+      processAutoTag(res.data.item._id);
     } catch (err) {
       const msg = err.response?.data?.error || 'Upload failed';
       setError(msg);
       toast.error(msg);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function processAutoTag(itemId) {
+    try {
+      const res = await api.post(`/wardrobe/${itemId}/auto-tag`);
+      if (res.data.item.autoTagged) {
+        setItems((prev) => prev.map((i) => (i._id === itemId ? res.data.item : i)));
+      }
+    } catch {
+      // silent — auto-tag is best-effort
     }
   }
 
@@ -327,9 +339,9 @@ export default function Closet() {
 
 function Stat({ label, value }) {
   return (
-    <div className="bg-white px-3 py-2 rounded-lg shadow">
-      <span className="font-semibold text-indigo-600">{value}</span>{' '}
-      <span className="text-slate-500">{label}</span>
+    <div className="px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--brand-border)' }}>
+      <span className="font-medium">{value}</span>{' '}
+      <span className="text-muted-foreground text-sm">{label}</span>
     </div>
   );
 }

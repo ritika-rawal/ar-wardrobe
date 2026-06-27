@@ -313,6 +313,8 @@ export default function GarmentCapture({ onSaved, onClose }) {
       const { data } = await api.post('/wardrobe', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const item = data.item;
       const updated = await api.put(`/wardrobe/${item._id}`, { tryOnAssetUrl: item.imageUrl });
+      // Fire-and-forget auto-tag (best effort)
+      api.post(`/wardrobe/${item._id}/auto-tag`).catch(() => {});
       toast.success(`"${item.name}" added — AR-ready`);
       URL.revokeObjectURL(cutoutUrl);
       onSaved?.(updated.data.item);

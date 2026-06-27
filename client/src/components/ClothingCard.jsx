@@ -1,4 +1,4 @@
-import { Pencil, Sparkles, Trash2 } from 'lucide-react';
+import { Pencil, Sparkles, Trash2, Wand2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,11 +47,23 @@ export default function ClothingCard({
       )}
 
       <CardContent className="p-3">
-        <p className="font-medium truncate">{item.name}</p>
+        <div className="flex items-center gap-1 min-w-0">
+          <p className="font-medium truncate flex-1">{item.name}</p>
+          {item.autoTagged && (
+            <Wand2 className="h-3 w-3 shrink-0 text-muted-foreground" title="AI-tagged" />
+          )}
+        </div>
         <div className="flex flex-wrap gap-1 mt-1">
           <Badge variant="outline" className="text-xs capitalize">{item.category}</Badge>
           {item.color && <Badge variant="outline" className="text-xs capitalize">{item.color}</Badge>}
         </div>
+        {item.styleTags?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {item.styleTags.map((t) => (
+              <Badge key={t} variant="secondary" className="text-xs capitalize">{t}</Badge>
+            ))}
+          </div>
+        )}
         {item.seasons?.length > 0 && (
           <p className="text-xs text-muted-foreground mt-1">{item.seasons.join(', ')}</p>
         )}

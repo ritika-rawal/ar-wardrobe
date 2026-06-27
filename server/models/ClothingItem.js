@@ -14,6 +14,8 @@ const clothingItemSchema = new mongoose.Schema(
     imageUrl: { type: String, required: true }, // original uploaded photo
     tryOnAssetUrl: { type: String, default: null }, // transparent PNG used by AR overlay
     tags: { type: [String], default: [] },
+    autoTagged: { type: Boolean, default: false },
+    styleTags: { type: [String], default: [] },
   },
   { timestamps: true }
 );
