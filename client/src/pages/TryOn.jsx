@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Save, X } from 'lucide-react';
+import { Save, Share2, X } from 'lucide-react';
 import api from '../api/client.js';
 import ClothingCard from '../components/ClothingCard.jsx';
 import WebcamAR from '../components/WebcamAR.jsx';
@@ -49,6 +49,23 @@ export default function TryOn() {
   }
 
   const tryOnable = items.filter((i) => ['top', 'bottom', 'outerwear'].includes(i.category));
+
+  async function handleShareSnapshot(dataUrl) {
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], 'outfit.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'My outfit — Virtual Wardrobe' });
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'outfit.png';
+        a.click();
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') toast.error('Could not share snapshot');
+    }
+  }
 
   async function handleSaveOutfit() {
     if (!snapshot || selected.length === 0) return;
@@ -137,6 +154,9 @@ export default function TryOn() {
               <Button onClick={handleSaveOutfit} disabled={saving} className="gap-2 whitespace-nowrap">
                 <Save className="h-4 w-4" />
                 {saving ? 'Saving…' : 'Save this look'}
+              </Button>
+              <Button variant="outline" className="gap-2 whitespace-nowrap" onClick={() => handleShareSnapshot(snapshot)}>
+                <Share2 className="h-4 w-4" /> Share
               </Button>
             </div>
           </div>

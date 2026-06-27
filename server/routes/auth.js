@@ -72,4 +72,16 @@ router.put('/me/preferences', requireAuth, async (req, res) => {
   res.json({ user: user.toSafeJSON() });
 });
 
+router.patch('/onboarding', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    user.onboardingComplete = true;
+    await user.save();
+    res.json({ user: user.toSafeJSON() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update onboarding', detail: err.message });
+  }
+});
+
 export default router;

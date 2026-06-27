@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     preferences: { type: preferencesSchema, default: () => ({}) },
+    onboardingComplete: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -26,6 +27,7 @@ userSchema.methods.toSafeJSON = function () {
     name: this.name,
     email: this.email,
     preferences: this.preferences,
+    onboardingComplete: this.onboardingComplete,
   };
 };
 

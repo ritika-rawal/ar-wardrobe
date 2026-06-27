@@ -1,0 +1,16 @@
+{
+  "name": "Virtual Wardrobe",
+  "short_name": "Wardrobe",
+  "description": "AR-powered digital wardrobe and outfit recommendations",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0f172a",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
