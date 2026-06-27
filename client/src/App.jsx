@@ -5,6 +5,7 @@ import OnboardingDialog from './components/OnboardingDialog.jsx';
 import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import Dashboard from './pages/Dashboard.jsx';
 import Closet from './pages/Closet.jsx';
 import TryOn from './pages/TryOn.jsx';
 import Recommendations from './pages/Recommendations.jsx';
@@ -17,13 +18,21 @@ export default function App() {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-background">
       <Navbar />
       {user && !user.onboardingComplete && <OnboardingDialog />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/closet"
           element={
@@ -61,6 +70,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lookbook"
+          element={
+            <ProtectedRoute>
+              <NotFound />
             </ProtectedRoute>
           }
         />
