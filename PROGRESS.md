@@ -2,7 +2,7 @@
 
 Living checklist. Update after each meaningful change. Plan reference: `~/.claude/plans/developing-an-ar-powered-virtual-purring-crane.md`.
 
-## Status: Phase 7 (shadcn/ui + Lucide icon system) complete — polish pass in progress (areas 2-5 pending)
+## Status: Phase 7 complete + full polish pass (Areas 2–5) complete
 
 ### Done
 - [x] Project scaffold: `server/` (Express) + `client/` (React + Vite + Tailwind)
@@ -209,17 +209,40 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
 - Auth is intentionally bare-minimum: no email verification, no refresh tokens, no password reset.
 - No automated test suite yet — verification so far is manual curl + Vite module-transform checks (no browser automation tool available in this environment).
 
-### Next up (polish pass — 4 areas remaining)
-- [ ] **Area 2 — Wardrobe management UX**: name search, filter pills (replace dropdowns), multi-
-  select + bulk delete, empty state.
-- [ ] **Area 3 — Camera capture improvements**: framing guide overlay, tips panel, auto-capture
-  with stability detection, brightness/blur quality hints.
-- [ ] **Area 4 — Recommendations improvements**: auto-load on mount via geolocation/IP fallback,
-  occasion filter pills, re-roll button with outfit shuffle, "mark as worn" flow.
-- [ ] **Area 5 — General polish**: onboarding Dialog (3-step, first login only), PWA manifest +
-  minimal service worker, React ErrorBoundary, AR snapshot share button, 404 page.
-- [ ] **Manual browser test**: confirm shadcn components render correctly (cards, badges, dialogs,
-  sliders, sonner toasts), no layout regressions vs pre-migration.
+### Phase 8 — major polish pass (Areas 2–5, this session)
+- [x] **Area 2 — Wardrobe management UX** (`Closet.jsx`, `ClothingCard.jsx`): name search input
+  (debounced, `<Search />` icon adornment, client-side filter on server results); category +
+  season filter pills (`<Badge>` toggles replacing raw `<select>` dropdowns), color text input
+  with `<Palette />` adornment, "Filters active" secondary badge; multi-select mode (Select button
+  toggles; per-card `<Checkbox>` in top-left corner); floating bulk-action bar ("N selected ·
+  Delete · Clear") with `Promise.all` bulk delete + single success toast; richer empty state
+  (`<Upload />` icon, CTA button with smooth-scroll to upload form).
+- [x] **Area 3 — Camera capture improvements** (`GarmentCapture.jsx`, full rewrite): canvas
+  framing guide overlay (`absolute inset-0`, RAF loop, rounded rect + L-corner markers, pulses
+  green when stable); collapsible tips panel (`<ChevronDown />` toggle, 4 tips); auto-capture with
+  2-second brightness-histogram stability detection + 3-2-1 countdown overlay drawn on canvas;
+  brightness/blur quality hint row (`<Sun />` / `<Crosshair />`, throttled to 500ms); auto-capture
+  on/off toggle (`<Zap />` / `<ZapOff />`); manual Capture always available.
+- [x] **Area 4 — Recommendations improvements**: auto-load on mount (geolocation → `ipapi.co`
+  IP fallback); occasion filter pills (Any/Casual/Work/Formal/Outdoor), passed as `?occasion=` to
+  the recommend route; re-roll button (`<RefreshCw />`, re-fetches with same `lastParams` ref);
+  Fisher-Yates shuffle in `recommendService.js` so re-rolls surface different items; "Mark as worn
+  today" button (`<CheckCheck />`) after saving an outfit → `POST /api/outfits/:id/worn` endpoint;
+  `worn` + `wornAt` fields on `Outfit` model; "Worn on [date]" `<Badge>` in `Outfits.jsx`
+  (migrated to shadcn Cards + Badge + Button + Lucide icons).
+- [x] **Area 5 — General polish**: `onboardingComplete: Boolean` on `User` model + `toSafeJSON()`
+  + `PATCH /auth/onboarding` endpoint; `OnboardingDialog.jsx` (3-step, non-dismissable, first
+  login only, mounted in `App.jsx`); `ErrorBoundary.jsx` (class component) wrapping the router in
+  `main.jsx`; `client/public/manifest.json` + `client/public/sw.js` (app-shell cache, install +
+  activate + navigate handler); `<link rel="manifest">` + SW registration in `index.html`; AR
+  snapshot Share button (`navigator.share({ files })` → download fallback); `NotFound.jsx` 404
+  page + `<Route path="*">` catch-all in `App.jsx`.
+- [x] All 4 areas build-verified (`npm run build` passes clean after each commit).
+
+### Next up
+- [ ] **Manual browser test**: confirm all polish-pass features work — onboarding dialog on first
+  login, filter pills, bulk delete, camera guide overlay, auto-capture countdown, occasion filter,
+  re-roll, mark as worn, 404 page, PWA install prompt, error boundary.
 
 ## How to run locally
 ```bash
