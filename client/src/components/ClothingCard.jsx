@@ -2,15 +2,31 @@ import { Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 
-export default function ClothingCard({ item, onDelete, onEdit, selectable, selected, onToggleSelect, processing }) {
+export default function ClothingCard({
+  item, onDelete, onEdit,
+  selectable, selected, onToggleSelect,
+  selectMode, bulkSelected, onBulkToggle,
+  processing,
+}) {
   return (
     <Card
       className={`overflow-hidden border-2 transition relative ${
-        selected ? 'border-indigo-500' : 'border-transparent'
+        bulkSelected ? 'border-primary' : selected ? 'border-indigo-500' : 'border-transparent'
       } ${selectable ? 'cursor-pointer' : ''}`}
       onClick={selectable ? () => onToggleSelect(item) : undefined}
     >
+      {selectMode && (
+        <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={!!bulkSelected}
+            onCheckedChange={() => onBulkToggle(item._id)}
+            className="bg-white border-2 shadow"
+          />
+        </div>
+      )}
+
       <div className="w-full h-40 bg-muted flex items-center justify-center overflow-hidden">
         <img src={item.imageUrl} alt={item.name} className="w-full h-full object-contain" />
       </div>
@@ -39,30 +55,32 @@ export default function ClothingCard({ item, onDelete, onEdit, selectable, selec
         {item.seasons?.length > 0 && (
           <p className="text-xs text-muted-foreground mt-1">{item.seasons.join(', ')}</p>
         )}
-        <div className="flex gap-1 mt-2">
-          {onEdit && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-              aria-label="Edit item"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDelete(item._id); }}
-              aria-label="Delete item"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        {!selectMode && (
+          <div className="flex gap-1 mt-2">
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                aria-label="Edit item"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+                onClick={(e) => { e.stopPropagation(); onDelete(item._id); }}
+                aria-label="Delete item"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
