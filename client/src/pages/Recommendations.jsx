@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CheckCheck, CloudRain, MapPin, RefreshCw, Save, Wind } from 'lucide-react';
+import { Check, CheckCheck, CloudRain, Info, MapPin, RefreshCw, Save, Wind } from 'lucide-react';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const OCCASIONS = [
   { value: '', label: 'Any' },
@@ -212,7 +213,22 @@ export default function Recommendations() {
         </CardContent>
       </Card>
 
-      {loading && <p className="text-muted-foreground">Fetching weather and building outfits…</p>}
+      {loading && (
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <Card key={i}>
+              <CardContent className="pt-4">
+                <Skeleton className="h-3 w-48 mb-4" />
+                <div className="flex gap-3">
+                  {[0, 1, 2].map((j) => (
+                    <Skeleton key={j} className="w-20 h-20 rounded" />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
       {error && <p className="text-destructive">{error}</p>}
 
       {data && !loading && (
@@ -249,8 +265,6 @@ export default function Recommendations() {
               </button>
             ))}
           </div>
-
-          {data.message && <p className="text-muted-foreground mb-4">{data.message}</p>}
 
           <div className="space-y-4">
             {data.outfits.map((outfit, i) => (
@@ -302,6 +316,14 @@ export default function Recommendations() {
               </Card>
             ))}
           </div>
+
+          {data.nudge && (
+            <div className="flex items-start gap-2 mt-5 px-4 py-3 rounded-[14px] text-sm text-muted-foreground"
+              style={{ background: 'var(--brand-stone)' }}>
+              <Info className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{data.nudge}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

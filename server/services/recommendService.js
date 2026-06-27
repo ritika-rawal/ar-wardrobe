@@ -1,5 +1,3 @@
-// Simple rule-based outfit recommendation engine.
-
 function warmthRangeForTemp(tempC) {
   if (tempC < 5) return { min: 5, max: 5, needsOuterwear: true, label: 'very cold' };
   if (tempC < 12) return { min: 4, max: 5, needsOuterwear: true, label: 'cold' };
@@ -16,7 +14,7 @@ function currentSeason() {
   return 'autumn';
 }
 
-function scoreItem(item, preferences = {}) {
+function scoreItem(item, preferences = {}, occasion = '') {
   let score = 0;
   const color = (item.color || '').toLowerCase();
   const favorites = (preferences.favoriteColors || []).map((c) => c.toLowerCase());
@@ -25,9 +23,23 @@ function scoreItem(item, preferences = {}) {
   if (favorites.includes(color)) score += 2;
   if (avoided.includes(color)) score -= 3;
 
-  const styles = (preferences.styles || []).map((s) => s.toLowerCase());
-  const tags = (item.tags || []).map((t) => t.toLowerCase());
+  const styles = [
+    ...(preferences.styles || []),
+    ...(preferences.styleVibes || []),
+  ].map((s) => s.toLowerCase());
+  const tags = [...(item.tags || []), ...(item.styleTags || [])].map((t) => t.toLowerCase());
   if (styles.some((s) => tags.includes(s))) score += 1;
+
+  // Soft occasion boost
+  if (occasion) {
+    const catBoost = {
+      formal: ['top', 'bottom', 'outerwear'],
+      outdoor: ['outerwear', 'shoes'],
+      work: ['top', 'bottom'],
+      gym: ['top', 'bottom', 'shoes'],
+    };
+    if (catBoost[occasion]?.includes(item.category)) score += 1;
+  }
 
   return score;
 }
@@ -41,81 +53,110 @@ function shuffle(arr) {
   return a;
 }
 
-// Pick top-n items by score, with a shuffle pass before slicing so re-rolls differ.
 function pickBest(items, n = 1) {
+  if (!items.length) return [];
   const sorted = [...items].sort((a, b) => b._score - a._score);
-  // Separate items with the same score range (top third) and shuffle within that group
-  // so each re-roll can surface different equally-good items.
-  const topScore = sorted[0]?._score ?? 0;
+  const topScore = sorted[0]._score;
   const topTier = sorted.filter((i) => i._score >= topScore);
   const rest = sorted.filter((i) => i._score < topScore);
   return [...shuffle(topTier), ...shuffle(rest)].slice(0, n);
 }
 
-function applyOccasionFilter(items, occasion) {
-  if (!occasion) return items;
-  if (occasion === 'formal') {
-    // Exclude shoes and accessories; keep structured pieces
-    return items.filter((i) => i.category === 'top' || i.category === 'bottom' || i.category === 'outerwear');
+function stripScore(item) {
+  const { _score, ...rest } = item;
+  return rest;
+}
+
+function buildOutfits({ pool, wantOuterwear, note, count }) {
+  const byCategory = (cat) => pool.filter((i) => i.category === cat);
+  const tops = pickBest(byCategory('top'), count);
+  const bottoms = pickBest(byCategory('bottom'), count);
+  const outerwear = pickBest(byCategory('outerwear'), count);
+  const shoes = pickBest(byCategory('shoes'), count);
+
+  const outfits = [];
+
+  for (let i = 0; i < count; i++) {
+    const top = tops[i] || tops[0] || null;
+    const bottom = bottoms[i] || bottoms[0] || null;
+
+    // Need at least one core piece
+    if (!top && !bottom) break;
+
+    const chosenOuter = wantOuterwear ? outerwear[i] || outerwear[0] || null : null;
+    const chosenShoes = shoes[i] || shoes[0] || null;
+
+    const items = [top, bottom, chosenOuter, chosenShoes].filter(Boolean).map(stripScore);
+    outfits.push({ items, note, why: note });
+
+    // Stop early if no more variety
+    if (!tops[i + 1] && !bottoms[i + 1] && i > 0) break;
   }
-  if (occasion === 'outdoor') {
-    // Boost outerwear by treating it as required — handled in outfit builder, no filter here
-    return items;
+
+  // Fallback: if nothing was built (e.g. only shoes in wardrobe), return top single item
+  if (outfits.length === 0 && pool.length > 0) {
+    const best = pickBest(pool, 1).map(stripScore);
+    outfits.push({ items: best, note, why: note });
   }
-  // 'casual' / 'work': no hard exclusion, scoring handles preferences
-  return items;
+
+  return outfits;
 }
 
 export function recommendOutfits({ wardrobe, weather, preferences, occasion = '' }, count = 3) {
   const { min, max, needsOuterwear, label } = warmthRangeForTemp(weather.tempC);
   const season = currentSeason();
 
-  const inSeasonOrUnspecified = (item) => item.seasons.length === 0 || item.seasons.includes(season);
-  const warmEnough = (item) => item.warmth >= min - 1 && item.warmth <= max + 1;
-
-  const scored = wardrobe
-    .filter((item) => inSeasonOrUnspecified(item) && warmEnough(item))
-    .map((item) => ({ ...item, _score: scoreItem(item, preferences) }));
-
-  const occasionFiltered = applyOccasionFilter(scored, occasion);
-
-  const byCategory = (cat) => occasionFiltered.filter((i) => i.category === cat);
-
-  const tops = pickBest(byCategory('top'), count);
-  const bottoms = pickBest(byCategory('bottom'), count);
-  const outerwear = pickBest(byCategory('outerwear'), count);
-  // Shoes/accessories excluded for formal; included for others
-  const shoes = occasion === 'formal' ? [] : pickBest(byCategory('shoes'), count);
-
+  const inSeason = (item) => item.seasons.length === 0 || item.seasons.includes(season);
+  const inWarmth = (item) => item.warmth >= min - 1 && item.warmth <= max + 1;
   const wantOuterwear = needsOuterwear || weather.isRainy || weather.isWindy || occasion === 'outdoor';
 
-  const outfits = [];
-  for (let i = 0; i < count; i++) {
-    const top = tops[i] || tops[0];
-    const bottom = bottoms[i] || bottoms[0];
-    if (!top || !bottom) break;
-
-    const chosenOuter = wantOuterwear ? outerwear[i] || outerwear[0] : null;
-    const chosenShoes = shoes[i] || shoes[0] || null;
-
-    const items = [top, bottom, chosenOuter, chosenShoes].filter(Boolean);
-    const reasons = [];
-    reasons.push(`Matches today's ${label} weather (${Math.round(weather.tempC)}°C)`);
-    if (wantOuterwear && chosenOuter) reasons.push('Added outerwear for warmth/wind/rain protection');
-    if (weather.isRainy) reasons.push('Rain expected');
-    if (occasion) reasons.push(`Occasion: ${occasion}`);
-    if (items.some((it) => it._score > 0)) reasons.push('Includes your preferred colors/styles');
-
-    outfits.push({
-      items: items.map(({ _score, ...rest }) => rest),
-      why: reasons.join('. '),
-    });
-
-    if (!tops[i + 1] && !bottoms[i + 1]) break;
+  function addScores(items) {
+    return items.map((item) => ({ ...item, _score: scoreItem(item, preferences, occasion) }));
   }
 
-  return {
-    weatherSummary: { ...weather, season, warmthBand: label },
-    outfits,
-  };
+  // Tier 1: weather + warmth + preferences
+  const tier1Pool = addScores(wardrobe.filter((i) => inSeason(i) && inWarmth(i)));
+  let outfits = buildOutfits({
+    pool: tier1Pool,
+    wantOuterwear,
+    note: `Matched to today's ${label} weather (${Math.round(weather.tempC)}°C) and your style`,
+    count,
+  });
+  if (outfits.length > 0) {
+    return { weatherSummary: { ...weather, season, warmthBand: label }, outfits, usedFallback: false };
+  }
+
+  // Tier 2: weather + warmth, ignore preferences
+  const tier2Pool = addScores(wardrobe.filter((i) => inWarmth(i)));
+  outfits = buildOutfits({
+    pool: tier2Pool,
+    wantOuterwear,
+    note: `Matched to today's ${label} weather (${Math.round(weather.tempC)}°C)`,
+    count,
+  });
+  if (outfits.length > 0) {
+    return { weatherSummary: { ...weather, season, warmthBand: label }, outfits, usedFallback: true };
+  }
+
+  // Tier 3: warmth-only (ignores season)
+  const tier3Pool = addScores(wardrobe.filter((i) => inWarmth(i)));
+  outfits = buildOutfits({
+    pool: tier3Pool.length ? tier3Pool : addScores(wardrobe),
+    wantOuterwear,
+    note: 'Your best picks for the temperature',
+    count,
+  });
+  if (outfits.length > 0) {
+    return { weatherSummary: { ...weather, season, warmthBand: label }, outfits, usedFallback: true };
+  }
+
+  // Tier 4: any items, most recently added
+  const tier4Pool = addScores([...wardrobe].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+  outfits = buildOutfits({
+    pool: tier4Pool,
+    wantOuterwear: false,
+    note: 'Based on your wardrobe',
+    count,
+  });
+  return { weatherSummary: { ...weather, season, warmthBand: label }, outfits, usedFallback: true };
 }

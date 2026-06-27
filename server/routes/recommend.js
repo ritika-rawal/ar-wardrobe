@@ -39,23 +39,19 @@ router.get('/', async (req, res) => {
       });
     }
 
-    const { weatherSummary, outfits } = recommendOutfits({
+    const { weatherSummary, outfits, usedFallback } = recommendOutfits({
       wardrobe,
       weather,
       preferences: user?.preferences || {},
       occasion: occasion || '',
     });
 
-    if (outfits.length === 0) {
-      return res.json({
-        location: locationLabel,
-        weather: weatherSummary,
-        outfits: [],
-        message: 'Not enough variety in your closet yet — add at least one top and one bottom.',
-      });
-    }
-
-    res.json({ location: locationLabel, weather: weatherSummary, outfits });
+    res.json({
+      location: locationLabel,
+      weather: weatherSummary,
+      outfits,
+      nudge: usedFallback ? 'Add more items to get better outfit matches' : null,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to build recommendations', detail: err.message });
   }
