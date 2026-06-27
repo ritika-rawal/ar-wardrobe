@@ -1,4 +1,11 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 const CATEGORIES = ['top', 'bottom', 'outerwear', 'shoes', 'accessory'];
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
@@ -26,74 +33,68 @@ export default function EditItemModal({ item, onSave, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-5">
-        <h2 className="text-lg font-semibold mb-3">Edit item</h2>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit item</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="text"
-            className="w-full border rounded px-3 py-2"
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+            placeholder="Item name"
           />
+
           <div className="flex gap-2">
-            <select
-              className="border rounded px-3 py-2 flex-1"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
               placeholder="Color"
-              className="border rounded px-3 py-2 flex-1"
               value={color}
               onChange={(e) => setColor(e.target.value)}
+              className="flex-1"
             />
           </div>
-          <div>
-            <label className="text-sm text-slate-600">Warmth: {warmth}/5</label>
-            <input
-              type="range"
-              min="1"
-              max="5"
-              value={warmth}
-              onChange={(e) => setWarmth(Number(e.target.value))}
-              className="w-full"
+
+          <div className="space-y-1">
+            <Label className="text-sm text-muted-foreground">Warmth: {warmth}/5</Label>
+            <Slider
+              min={1} max={5} step={1}
+              value={[warmth]}
+              onValueChange={([v]) => setWarmth(v)}
             />
           </div>
-          <div className="flex gap-3 text-sm flex-wrap">
+
+          <div className="flex flex-wrap gap-3">
             {SEASONS.map((s) => (
-              <label key={s} className="flex items-center gap-1 capitalize">
-                <input type="checkbox" checked={seasons.includes(s)} onChange={() => toggleSeason(s)} />
-                {s}
-              </label>
+              <div key={s} className="flex items-center gap-1.5">
+                <Checkbox
+                  id={`season-edit-${s}`}
+                  checked={seasons.includes(s)}
+                  onCheckedChange={() => toggleSeason(s)}
+                />
+                <Label htmlFor={`season-edit-${s}`} className="capitalize text-sm font-normal">{s}</Label>
+              </div>
             ))}
           </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,4 +1,12 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const CATEGORIES = ['top', 'bottom', 'outerwear', 'shoes', 'accessory'];
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
@@ -44,68 +52,74 @@ export default function UploadForm({ onSubmit, busy }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-4 rounded-lg shadow space-y-3">
-      <h2 className="font-semibold">Add clothing item</h2>
-      <input type="file" accept="image/*" onChange={handleFileChange} required />
-      <p className="text-xs text-slate-500">
-        For the best AR try-on fit: a front-facing, centered photo (flat-lay or worn) on a plain
-        background works best — the background is removed automatically.
-      </p>
-      {preview && <img src={preview} alt="preview" className="h-24 object-cover rounded" />}
-      <input
-        type="text"
-        placeholder="Name (e.g. Blue denim jacket)"
-        className="w-full border rounded px-3 py-2"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
-      <div className="flex gap-2">
-        <select
-          className="border rounded px-3 py-2 flex-1"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <input
-          type="text"
-          placeholder="Color"
-          className="border rounded px-3 py-2 flex-1"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="text-sm text-slate-600">Warmth: {warmth}/5</label>
-        <input
-          type="range"
-          min="1"
-          max="5"
-          value={warmth}
-          onChange={(e) => setWarmth(e.target.value)}
-          className="w-full"
-        />
-      </div>
-      <div className="flex flex-wrap gap-3 text-sm">
-        {SEASONS.map((s) => (
-          <label key={s} className="flex items-center gap-1 capitalize">
-            <input type="checkbox" checked={seasons.includes(s)} onChange={() => toggleSeason(s)} />
-            {s}
-          </label>
-        ))}
-      </div>
-      <button
-        type="submit"
-        disabled={busy}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded disabled:opacity-50"
-      >
-        {busy ? 'Uploading...' : 'Add to closet'}
-      </button>
-    </form>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Add clothing item</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <Input type="file" accept="image/*" onChange={handleFileChange} required />
+          <p className="text-xs text-muted-foreground">
+            A front-facing photo on a plain background works best — background is removed automatically.
+          </p>
+          {preview && <img src={preview} alt="preview" className="h-24 object-cover rounded" />}
+
+          <Input
+            type="text"
+            placeholder="Name (e.g. Blue denim jacket)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+
+          <div className="flex gap-2">
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="text"
+              placeholder="Color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="flex-1"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-sm text-muted-foreground">Warmth: {warmth}/5</Label>
+            <Slider
+              min={1} max={5} step={1}
+              value={[warmth]}
+              onValueChange={([v]) => setWarmth(v)}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {SEASONS.map((s) => (
+              <div key={s} className="flex items-center gap-1.5">
+                <Checkbox
+                  id={`season-upload-${s}`}
+                  checked={seasons.includes(s)}
+                  onCheckedChange={() => toggleSeason(s)}
+                />
+                <Label htmlFor={`season-upload-${s}`} className="capitalize text-sm font-normal">{s}</Label>
+              </div>
+            ))}
+          </div>
+
+          <Button type="submit" disabled={busy} className="w-full gap-2">
+            <Plus className="h-4 w-4" />
+            {busy ? 'Uploading…' : 'Add to closet'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
