@@ -11,6 +11,7 @@ import TryOn from './pages/TryOn.jsx';
 import Recommendations from './pages/Recommendations.jsx';
 import Outfits from './pages/Outfits.jsx';
 import Profile from './pages/Profile.jsx';
+import Lookbook from './pages/Lookbook.jsx';
 import NotFound from './pages/NotFound.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 
@@ -77,7 +78,7 @@ export default function App() {
           path="/lookbook"
           element={
             <ProtectedRoute>
-              <NotFound />
+              <Lookbook />
             </ProtectedRoute>
           }
         />

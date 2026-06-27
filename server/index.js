@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import wardrobeRoutes from './routes/wardrobe.js';
 import recommendRoutes from './routes/recommend.js';
 import outfitRoutes from './routes/outfits.js';
+import lookbookRoutes from './routes/lookbook.js';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/wardrobe', wardrobeRoutes);
 app.use('/api/recommend', recommendRoutes);
 app.use('/api/outfits', outfitRoutes);
+app.use('/api/lookbook', lookbookRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

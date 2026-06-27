@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, Trash2 } from 'lucide-react';
+import { BookMarked, Clock, Trash2 } from 'lucide-react';
 import api from '../api/client.js';
 import CardGridSkeleton from '../components/CardGridSkeleton.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -13,6 +13,7 @@ export default function Outfits() {
   const [outfits, setOutfits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pinnedIds, setPinnedIds] = useState(new Set());
 
   useEffect(() => {
     load();
@@ -34,6 +35,17 @@ export default function Outfits() {
     await api.delete(`/outfits/${id}`);
     setOutfits((prev) => prev.filter((o) => o._id !== id));
     toast.info('Outfit deleted');
+  }
+
+  async function handlePin(outfitId) {
+    if (pinnedIds.has(outfitId)) return;
+    try {
+      await api.post('/lookbook', { outfitId });
+      setPinnedIds((prev) => new Set(prev).add(outfitId));
+      toast.success('Pinned to Lookbook');
+    } catch {
+      toast.error('Failed to pin outfit');
+    }
   }
 
   return (
@@ -77,11 +89,22 @@ export default function Outfits() {
                     Worn {new Date(outfit.wornAt).toLocaleDateString()}
                   </Badge>
                 )}
-                <div>
+                <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1 text-destructive hover:text-destructive px-0 h-auto"
+                    className="gap-1 px-0 h-auto text-muted-foreground hover:text-foreground"
+                    onClick={() => handlePin(outfit._id)}
+                    disabled={pinnedIds.has(outfit._id)}
+                    title="Pin to lookbook"
+                  >
+                    <BookMarked className="h-3 w-3" />
+                    {pinnedIds.has(outfit._id) ? 'Pinned' : 'Pin'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1 text-destructive hover:text-destructive px-0 h-auto ml-2"
                     onClick={() => handleDelete(outfit._id)}
                   >
                     <Trash2 className="h-3 w-3" /> Delete
