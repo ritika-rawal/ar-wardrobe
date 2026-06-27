@@ -5,6 +5,7 @@ import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
+import './styles/tokens.css';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(

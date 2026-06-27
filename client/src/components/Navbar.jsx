@@ -1,79 +1,172 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Menu, Shirt, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 
 const LINKS = [
-  { to: '/closet', label: 'Closet' },
-  { to: '/try-on', label: 'Try-On (AR)' },
-  { to: '/recommendations', label: 'Recommendations' },
-  { to: '/outfits', label: 'My Outfits' },
-  { to: '/profile', label: 'Profile' },
+  { to: '/dashboard', label: 'Home', authOnly: true },
+  { to: '/closet', label: 'Closet', authOnly: true },
+  { to: '/try-on', label: 'Try-On', authOnly: true },
+  { to: '/recommendations', label: 'Recommendations', authOnly: true },
+  { to: '/outfits', label: 'Outfits', authOnly: true },
+  { to: '/lookbook', label: 'Lookbook', authOnly: true },
+  { to: '/profile', label: 'Profile', authOnly: true },
 ];
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const overlayRef = useRef(null);
 
   function handleLogout() {
     logout();
-    setMenuOpen(false);
+    setOpen(false);
     navigate('/login');
   }
 
+  function close() {
+    setOpen(false);
+  }
+
+  useEffect(() => {
+    close();
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  const visibleLinks = user ? LINKS.filter((l) => l.authOnly) : [];
+
   return (
-    <nav className="bg-slate-900 text-white px-4 sm:px-6 py-3">
-      <div className="flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-lg" onClick={() => setMenuOpen(false)}>
-          <Shirt className="h-5 w-5" />
-          Virtual Wardrobe
-        </Link>
+    <>
+      <nav
+        className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm"
+        style={{ borderBottom: '1px solid var(--brand-border)' }}
+      >
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-12 sm:h-13">
+          <Link
+            to={user ? '/dashboard' : '/'}
+            className="text-xs font-semibold tracking-[0.18em] uppercase"
+            style={{ color: 'var(--brand-black)', letterSpacing: '0.18em' }}
+          >
+            VIRTUAL WARDROBE
+          </Link>
 
-        {user && (
-          <>
-            <div className="hidden md:flex items-center gap-1 text-sm">
-              {LINKS.map((l) => (
-                <Button key={l.to} variant="ghost" size="sm" asChild className="text-white hover:text-indigo-300 hover:bg-slate-800">
-                  <Link to={l.to}>{l.label}</Link>
-                </Button>
-              ))}
-              <Separator orientation="vertical" className="h-5 mx-2 bg-slate-700" />
-              <span className="text-slate-400 text-sm">Hi, {user.name}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-slate-700">
-                Logout
-              </Button>
-            </div>
+          {user && (
+            <>
+              {/* Desktop links */}
+              <div className="hidden md:flex items-center gap-6 text-sm">
+                {visibleLinks.map((l) => {
+                  const active = location.pathname === l.to;
+                  return (
+                    <Link
+                      key={l.to}
+                      to={l.to}
+                      className="transition-colors"
+                      style={{
+                        color: active ? 'var(--brand-black)' : 'var(--brand-muted)',
+                        textDecoration: active ? 'underline' : 'none',
+                        textUnderlineOffset: '3px',
+                        textDecorationThickness: '1px',
+                      }}
+                    >
+                      {l.label}
+                    </Link>
+                  );
+                })}
+                <button
+                  onClick={handleLogout}
+                  className="text-sm transition-colors"
+                  style={{ color: 'var(--brand-muted)' }}
+                >
+                  Logout
+                </button>
+              </div>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden text-white hover:bg-slate-800"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-label="Toggle menu"
-            >
-              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
-          </>
-        )}
-      </div>
-
-      {user && menuOpen && (
-        <div className="md:hidden mt-3 flex flex-col gap-1 pb-2">
-          {LINKS.map((l) => (
-            <Button key={l.to} variant="ghost" asChild className="justify-start text-white hover:text-indigo-300 hover:bg-slate-800">
-              <Link to={l.to} onClick={() => setMenuOpen(false)}>{l.label}</Link>
-            </Button>
-          ))}
-          <Separator className="my-1 bg-slate-700" />
-          <span className="text-slate-400 text-sm px-3">Hi, {user.name}</span>
-          <Button variant="ghost" onClick={handleLogout} className="justify-start text-white hover:bg-slate-700">
-            Logout
-          </Button>
+              {/* Mobile hamburger */}
+              <button
+                className="md:hidden flex items-center justify-center w-8 h-8"
+                onClick={() => setOpen((v) => !v)}
+                aria-label="Toggle menu"
+                style={{ color: 'var(--brand-black)' }}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            </>
+          )}
         </div>
+      </nav>
+
+      {/* Mobile bottom sheet */}
+      {user && open && (
+        <>
+          {/* Overlay */}
+          <div
+            ref={overlayRef}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+            onClick={close}
+          />
+          {/* Sheet */}
+          <div
+            className="fixed bottom-0 left-0 right-0 z-50 bg-white"
+            style={{
+              borderRadius: 'var(--brand-radius-lg) var(--brand-radius-lg) 0 0',
+              animation: 'sheet-up 220ms ease',
+              paddingBottom: 'env(safe-area-inset-bottom, 16px)',
+            }}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <span
+                className="text-xs font-semibold tracking-[0.18em] uppercase"
+                style={{ color: 'var(--brand-black)' }}
+              >
+                VIRTUAL WARDROBE
+              </span>
+              <button onClick={close} aria-label="Close menu" style={{ color: 'var(--brand-muted)' }}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div
+              style={{ borderBottom: '1px solid var(--brand-border)', marginBottom: '8px' }}
+            />
+            <nav className="flex flex-col px-5 pb-4">
+              {visibleLinks.map((l) => {
+                const active = location.pathname === l.to;
+                return (
+                  <Link
+                    key={l.to}
+                    to={l.to}
+                    onClick={close}
+                    className="py-3 text-base font-medium transition-colors"
+                    style={{
+                      color: active ? 'var(--brand-black)' : 'var(--brand-muted)',
+                      textDecoration: active ? 'underline' : 'none',
+                      textUnderlineOffset: '3px',
+                      textDecorationThickness: '1px',
+                    }}
+                  >
+                    {l.label}
+                  </Link>
+                );
+              })}
+              <div
+                style={{ borderTop: '1px solid var(--brand-border)', margin: '8px 0' }}
+              />
+              <button
+                onClick={handleLogout}
+                className="py-3 text-base font-medium text-left transition-colors"
+                style={{ color: 'var(--brand-muted)' }}
+              >
+                Logout
+              </button>
+            </nav>
+          </div>
+        </>
       )}
-    </nav>
+    </>
   );
 }

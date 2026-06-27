@@ -1,0 +1,26 @@
+:root {
+  --brand-black: #1a1a1a;
+  --brand-white: #fafaf8;
+  --brand-stone: #f0ede8;
+  --brand-muted: #8a8680;
+  --brand-border: rgba(0, 0, 0, 0.08);
+  --brand-accent: #6b5ce7;
+
+  --brand-radius-sm: 8px;
+  --brand-radius-md: 14px;
+  --brand-radius-lg: 20px;
+
+  --brand-font-display: 'Inter', system-ui, sans-serif;
+  --brand-font-serif: Georgia, serif;
+
+  --transition: 150ms ease;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
