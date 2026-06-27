@@ -2,7 +2,7 @@
 
 Living checklist. Update after each meaningful change. Plan reference: `~/.claude/plans/developing-an-ar-powered-virtual-purring-crane.md`.
 
-## Status: Phase 7 complete + full polish pass (Areas 2–5) complete
+## Status: Phase 9 complete — fashion-brand redesign (Areas 0–6)
 
 ### Done
 - [x] Project scaffold: `server/` (Express) + `client/` (React + Vite + Tailwind)
@@ -239,10 +239,59 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   page + `<Route path="*">` catch-all in `App.jsx`.
 - [x] All 4 areas build-verified (`npm run build` passes clean after each commit).
 
+### Phase 9 — fashion-brand redesign (Areas 0–6, this session)
+- [x] **Area 0 — Global design language**: `client/src/styles/tokens.css` brand palette
+  (`--brand-black`, `--brand-white #fafaf8`, `--brand-stone`, `--brand-muted`, `--brand-accent`,
+  `--brand-border`), radii, fonts, `@keyframes sheet-up`. Inter 400/500/600 via Google Fonts in
+  `index.html`. `index.css` retuned: warm off-white `--background`, near-black `--primary`, Inter
+  on body, heading weight/tracking, `a { color: inherit }`. `main.jsx` imports `tokens.css` first.
+  `Navbar.jsx` full redesign: sticky white bar + `backdrop-blur`, 1px border, all-caps tracked
+  wordmark "VIRTUAL WARDROBE" (no icon), desktop plain-text muted links with underline-active,
+  mobile hamburger → bottom sheet (overlay `bg-black/40 backdrop-blur-sm`, slide-up animation,
+  large tap targets). Dashboard and Lookbook nav entries included.
+- [x] **Area 1 — Bug-fix + consistency pass**: dialog backdrop `bg-black/80` → `bg-black/40
+  backdrop-blur-sm` in `dialog.jsx`; same change in `GarmentCapture.jsx` backdrop. `Profile.jsx`
+  full shadcn migration (Input/Label/Card/Button, loading state, error handling). `Home.jsx`
+  redirects logged-in users to `/dashboard`, stripped indigo accents, cleaned marketing copy.
+  `App.jsx` wrapper changed from `bg-slate-100` to `bg-background`.
+- [x] **Area 2 — Dashboard page** (`Dashboard.jsx`, new): greeting + date; 4 stat chips (total
+  items, added this week, outfits saved, AR-ready); category bars (proportional, thin); top-5
+  colour dots with hex lookup; 7-day weekly strip (Mon–Sun, today = black dot, outfit days =
+  accent dot); 3 recent outfits as chips; style profile summary (styleVibes/favoriteColors/
+  occasions as badges + never-worn items); recommendation teaser (geolocation → IP fallback, shows
+  first outfit or nudge). `/dashboard` protected route added to `App.jsx`. `Home.jsx` redirects
+  to it when logged in.
+- [x] **Area 3 — AI auto-tagging** (`server/services/autoTagService.js`, new): no-op when
+  `OPENAI_API_KEY` absent (uses native `fetch`, no npm package needed); otherwise calls
+  `gpt-4o-mini` vision with JSON prompt → parses color/category/warmth/style_tags. `ClothingItem`
+  model: `autoTagged: Boolean`, `styleTags: [String]`. `POST /api/wardrobe/:id/auto-tag` route
+  added. `Closet.jsx` fires `processAutoTag(itemId)` after upload, updates item in state.
+  `GarmentCapture.jsx` fires auto-tag fire-and-forget after save. `ClothingCard.jsx` shows `Wand2`
+  icon when `autoTagged`, renders `styleTags` as secondary badges. Closet stat chips de-indigo-ified.
+- [x] **Area 4 — Tiered fallback recommendations**: `recommendService.js` fully rewritten with 4
+  tiers (weather+warmth+prefs → weather+warmth → warmth-only → any items). Outfits now need ≥1
+  item (no longer require top+bottom pair). Each outfit carries a `note` field. Occasion applied as
+  soft score boost, not hard filter. `usedFallback` boolean returned; route adds `nudge` field when
+  true. `Recommendations.jsx`: nudge banner with `<Info />` + `var(--brand-stone)` bg; skeleton
+  card loading state (3 cards × 3 item slots) replacing the "Fetching…" text.
+- [x] **Area 5 — 5-step onboarding quiz** (`OnboardingQuiz.jsx`, new): animated progress dots;
+  step 1 Welcome; step 2 style vibes multi-select pills (≤3); step 3 colour palette swatches (≤5,
+  12 colours); step 4 occasions multi-select; step 5 Done with 3 feature cards + navigate to
+  `/closet`. Steps 2–4 have Skip. `User` model: `preferencesSchema` extended with `styleVibes`
+  and `occasions`. `PUT /auth/me/preferences` now merges all 5 pref fields without overwriting.
+  `OnboardingDialog.jsx` replaced by `OnboardingQuiz.jsx` in `App.jsx`.
+- [x] **Area 6 — Lookbook** (`Lookbook.js` model, `lookbook.js` route, `Lookbook.jsx` page, new):
+  server model `{ userId, outfitId ref Outfit, caption }`. Routes: `GET/POST/DELETE /api/lookbook`
+  (registered in `index.js`). Client: masonry via `columns-2 md:columns-3`, filter pills (All/
+  Casual/Formal/This week), pin cards with hover `×` unpin, tap → bottom sheet with full outfit
+  detail + "Try on in AR" link. Empty state with serif italic text. `Outfits.jsx`: "Pin to
+  lookbook" `<BookMarked />` button per outfit → `POST /api/lookbook`.
+- [x] All 7 areas build-verified with `npm run build` after each commit.
+
 ### Next up
-- [ ] **Manual browser test**: confirm all polish-pass features work — onboarding dialog on first
-  login, filter pills, bulk delete, camera guide overlay, auto-capture countdown, occasion filter,
-  re-roll, mark as worn, 404 page, PWA install prompt, error boundary.
+- [ ] **Manual browser test**: verify fashion-brand aesthetic end-to-end — navbar wordmark, warm
+  off-white background, Inter font, mobile bottom sheet, Dashboard stats, Lookbook masonry, 5-step
+  quiz on new account, AI auto-tag (if OPENAI_API_KEY set), tiered recommendations with nudge.
 
 ## How to run locally
 ```bash
