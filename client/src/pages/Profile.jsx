@@ -2,6 +2,10 @@ import { useState } from 'react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 export default function Profile() {
   const toast = useToast();
@@ -11,6 +15,7 @@ export default function Profile() {
     (user?.preferences?.favoriteColors || []).join(', ')
   );
   const [avoidColors, setAvoidColors] = useState((user?.preferences?.avoidColors || []).join(', '));
+  const [saving, setSaving] = useState(false);
 
   function toList(s) {
     return s
@@ -21,56 +26,78 @@ export default function Profile() {
 
   async function handleSave(e) {
     e.preventDefault();
-    const res = await api.put('/auth/me/preferences', {
-      preferences: {
-        styles: toList(styles),
-        favoriteColors: toList(favoriteColors),
-        avoidColors: toList(avoidColors),
-      },
-    });
-    updateUser(res.data.user);
-    toast.success('Preferences saved');
+    setSaving(true);
+    try {
+      const res = await api.put('/auth/me/preferences', {
+        preferences: {
+          styles: toList(styles),
+          favoriteColors: toList(favoriteColors),
+          avoidColors: toList(avoidColors),
+        },
+      });
+      updateUser(res.data.user);
+      toast.success('Preferences saved');
+    } catch {
+      toast.error('Failed to save preferences');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow">
-      <h1 className="text-2xl font-semibold mb-4">Preferences</h1>
-      <p className="text-sm text-slate-500 mb-4">
-        These shape your outfit recommendations — favorite colors are boosted, avoided colors are
-        filtered down, and styles (matched to item tags) are preferred.
+    <div className="max-w-lg mx-auto px-4 sm:px-6 py-12">
+      <h1 className="text-2xl font-medium mb-1">Profile</h1>
+      <p className="text-sm text-muted-foreground mb-8">
+        {user?.name} &middot; {user?.email}
       </p>
-      <form onSubmit={handleSave} className="space-y-3">
-        <div>
-          <label className="text-sm text-slate-600">Styles (comma separated)</label>
-          <input
-            className="w-full border rounded px-3 py-2"
-            placeholder="casual, formal, sporty"
-            value={styles}
-            onChange={(e) => setStyles(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-sm text-slate-600">Favorite colors</label>
-          <input
-            className="w-full border rounded px-3 py-2"
-            placeholder="black, navy, white"
-            value={favoriteColors}
-            onChange={(e) => setFavoriteColors(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-sm text-slate-600">Colors to avoid</label>
-          <input
-            className="w-full border rounded px-3 py-2"
-            placeholder="orange, neon green"
-            value={avoidColors}
-            onChange={(e) => setAvoidColors(e.target.value)}
-          />
-        </div>
-        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded">
-          Save preferences
-        </button>
-      </form>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-medium">Style preferences</CardTitle>
+          <CardDescription>
+            These shape your outfit recommendations — favorite colors are boosted, avoided colors
+            filtered, and styles matched to item tags.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSave} className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="styles">Styles</Label>
+              <Input
+                id="styles"
+                placeholder="casual, formal, sporty"
+                value={styles}
+                onChange={(e) => setStyles(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Comma-separated</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="fav-colors">Favorite colors</Label>
+              <Input
+                id="fav-colors"
+                placeholder="black, navy, white"
+                value={favoriteColors}
+                onChange={(e) => setFavoriteColors(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="avoid-colors">Colors to avoid</Label>
+              <Input
+                id="avoid-colors"
+                placeholder="orange, neon green"
+                value={avoidColors}
+                onChange={(e) => setAvoidColors(e.target.value)}
+              />
+            </div>
+
+            <Button type="submit" disabled={saving} className="w-full">
+              {saving ? 'Saving…' : 'Save preferences'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

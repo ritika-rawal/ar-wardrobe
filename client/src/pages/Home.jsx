@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { CloudSun, Shirt, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ const FEATURES = [
   {
     Icon: Shirt,
     title: 'Digital Closet',
-    desc: 'Upload your clothes once and organize them by category, color, season, and warmth.',
+    desc: 'Upload your clothes once and organise them by category, colour, season, and warmth.',
   },
   {
     Icon: Sparkles,
@@ -24,40 +25,36 @@ const FEATURES = [
 
 export default function Home() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true });
+  }, [user, navigate]);
 
   return (
     <div>
-      <div className="max-w-3xl mx-auto mt-16 sm:mt-24 text-center px-4">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <Shirt className="h-10 w-10 text-indigo-600" />
-          <h1 className="text-4xl sm:text-5xl font-bold">Virtual Wardrobe</h1>
-        </div>
-        <p className="text-muted-foreground text-lg mb-8">
-          Organize your closet digitally, try on clothes live with AR, and get smart outfit
+      <div className="max-w-3xl mx-auto mt-16 sm:mt-24 text-center px-4 sm:px-6">
+        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight mb-4">Virtual Wardrobe</h1>
+        <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
+          Organise your closet digitally, try on clothes live with AR, and get smart outfit
           recommendations based on the weather and your style.
         </p>
-        {user ? (
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild size="lg">
-            <Link to="/closet">Go to my closet →</Link>
+            <Link to="/login">Log in</Link>
           </Button>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg">
-              <Link to="/login">Log in</Link>
-            </Button>
-            <Button asChild size="lg" variant="secondary">
-              <Link to="/register">Register</Link>
-            </Button>
-          </div>
-        )}
+          <Button asChild size="lg" variant="secondary">
+            <Link to="/register">Create account</Link>
+          </Button>
+        </div>
       </div>
 
-      <div className="max-w-4xl mx-auto mt-16 px-4 grid grid-cols-1 sm:grid-cols-3 gap-6 pb-16">
+      <div className="max-w-4xl mx-auto mt-20 px-4 sm:px-6 grid grid-cols-1 sm:grid-cols-3 gap-5 pb-20">
         {FEATURES.map(({ Icon, title, desc }) => (
-          <Card key={title} className="text-center">
+          <Card key={title}>
             <CardContent className="pt-6">
-              <Icon className="h-8 w-8 mx-auto mb-3 text-indigo-600" />
-              <h3 className="font-semibold mb-1">{title}</h3>
+              <Icon className="h-7 w-7 mb-3" style={{ color: 'var(--brand-accent)' }} />
+              <h3 className="font-medium mb-1">{title}</h3>
               <p className="text-sm text-muted-foreground">{desc}</p>
             </CardContent>
           </Card>

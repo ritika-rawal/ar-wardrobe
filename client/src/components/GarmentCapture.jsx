@@ -327,7 +327,7 @@ export default function GarmentCapture({ onSaved, onClose }) {
   const mirrored = facingMode === 'user';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[95vh] overflow-y-auto">
 
         {/* Header */}
