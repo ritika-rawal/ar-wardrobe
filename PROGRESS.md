@@ -288,6 +288,32 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   lookbook" `<BookMarked />` button per outfit → `POST /api/lookbook`.
 - [x] All 7 areas build-verified with `npm run build` after each commit.
 
+### Phase 10 — AR core robustness (Tier 1, this session)
+- [x] **Per-garment anchor auto-detection** (`client/src/ar/garmentAnchorDetect.js`, new): the WebGL/2D
+  renderers map 4 "image anchor" points (where the garment's shoulders/hips sit *inside its image*)
+  onto body landmarks. `LAYER_IMAGE_ANCHORS` only lined up for the seed flat-lay PNGs, so *uploaded*
+  or *camera-captured* garments (garment anywhere in frame, any scale) were misaligned — the weakest
+  part of the core feature. Now `detectGarmentAnchors(blob, category)` scans the cutout's alpha
+  bounding box (128px downscale) and remaps the calibrated template anchors into it, fixing
+  off-centre / wrong-padding / wrong-scale uploads while preserving the hand-tuned shoulder/hip inset
+  ratios. Persisted as `imageAnchors` on `ClothingItem`; `resolveImageAnchors(item, layer)` in
+  `garmentAnchors.js` consumes it (falls back to template anchors when absent). Wired into both upload
+  paths (`Closet.jsx#processBackgroundRemoval`, `GarmentCapture.jsx#handleSave`). Server:
+  `imageAnchors` schema field + `sanitizeAnchors()` validation on the try-on-asset (multipart JSON)
+  and PUT routes. Verified end-to-end via curl (anchors persist; malformed 3-point input rejected).
+- [x] **Temporal mask smoothing** (`webglRenderer.js`): the raw segmentation mask edge wobbles
+  frame-to-frame, making the silhouette-conform jitter the garment edges. Added an EMA (`MASK_SMOOTH
+  = 0.5`) over the mask; the smoothed buffer feeds both the GPU occlusion texture and the CPU
+  silhouette-edge search in one pass (no extra per-frame cost vs the old upload loop), so occlusion
+  and conform stay consistent and steady.
+- [x] **Visibility-gated stable quads** (`garmentAnchors.js`): `getDestQuadPx` now gates landmarks on
+  MediaPipe `visibility` (`VIS_THRESHOLD = 0.5`) instead of anchoring to noisy/garbage points. Tops
+  gate shoulders strictly but **synthesize a hip line** one torso-length below the shoulders when
+  hips are low-confidence/off-frame (common chest-up desk framing) so the garment doesn't disappear.
+  New `getStableDestQuad` adds 500ms hysteresis — a single dropped/occluded frame reuses the last
+  good quad instead of flickering the garment out. Both renderers switched to it.
+- [x] Build-verified: `npm run build` passes (1960 modules).
+
 ### Next up
 - [ ] **Manual browser test**: verify fashion-brand aesthetic end-to-end — navbar wordmark, warm
   off-white background, Inter font, mobile bottom sheet, Dashboard stats, Lookbook masonry, 5-step
