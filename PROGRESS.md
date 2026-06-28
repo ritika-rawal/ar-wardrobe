@@ -350,6 +350,28 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   down on unmount. (Forward clip, not a true boomerang — see README limitations.)
 - [x] Build-verified: `npm run build` passes.
 
+### Phase 13 — AR realism + calibration from manual-test feedback (this session)
+- [x] **Calibration from real-device feedback**: default `AUTO_FIT` scales reduced (top 1.16→1.02,
+  outerwear 1.26→1.12, bottom 1.10→1.00) — garments were too large by default. Body occlusion now
+  **off by default** (steadier overlay) with a first-class "Body occlusion: on/off" toolbar toggle
+  (was hidden behind debug). Occlusion artifacts reduced when on: mask EMA 0.5→0.35, fragment
+  `smoothstep(0.35,0.65)` on the mask edge, silhouette blend 0.75→0.55.
+- [x] **Garment relighting** (`webglRenderer.js` + `WebcamAR.jsx`): a 32×24 downscaled video sample
+  each pose tick gives an average scene RGB; the fragment shader nudges the garment toward the room's
+  colour cast (`CAST_STRENGTH`) and brightness (`EXPOSURE_STRENGTH`) so it stops looking pasted on.
+  Neutral grey fallback = no change; tainted-canvas guard skips it safely.
+- [x] **Contact shadow + edge feather**: a second offset draw pass renders a flat dark silhouette
+  (`SHADOW_ALPHA`) under each garment to ground it on the body; the garment's semi-transparent rim is
+  eroded (`smoothstep` on alpha) to kill the die-cut look.
+- [x] **Procedural fold relief**: the shader amplifies the garment photo's own luminance contrast
+  (`FOLD_STRENGTH`) so existing folds/seams read as fabric depth — no per-garment maps needed.
+- [x] **Lookbook redesigned as a mood board** (`Lookbook.jsx`): denser 2/3/4-col collage, full-bleed
+  imagery with gradient caption overlays, occasion tags, hover zoom, serif editorial header — visually
+  distinct from the Outfits list.
+- [x] **Bugfix**: `Dashboard.jsx` rendered the weather *object* directly (React crash) — now shows
+  temp/condition fields.
+- [x] Build-verified after each change (`npm run build`).
+
 ### Next up
 - [ ] **Manual browser test**: verify fashion-brand aesthetic end-to-end — navbar wordmark, warm
   off-white background, Inter font, mobile bottom sheet, Dashboard stats, Lookbook masonry, 5-step

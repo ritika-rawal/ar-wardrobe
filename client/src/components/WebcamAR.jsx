@@ -82,6 +82,9 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const smoothedLandmarksRef = useRef(null);
   const maskRef = useRef(null);
   const workingFacingModeRef = useRef('user');
+  // Average scene light (room exposure + colour cast), sampled from the video for garment relighting.
+  const sceneCanvasRef = useRef(null);
+  const sceneLightRef = useRef(null);
   // Perf HUD counters (refs so the 60fps loop never triggers a re-render; surfaced to state on a
   // ~500ms cadence instead).
   const frameCountRef = useRef(0);
@@ -229,6 +232,30 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
         smoothedLandmarksRef.current = oneEuroRef.current.filter(landmarks, now);
         maskRef.current = mask;
         setNoPose(!landmarks);
+
+        // Sample average scene light (room exposure + colour cast) for garment relighting.
+        if (!sceneCanvasRef.current) {
+          const sc = document.createElement('canvas');
+          sc.width = 32;
+          sc.height = 24;
+          sceneCanvasRef.current = sc;
+        }
+        try {
+          const sc = sceneCanvasRef.current;
+          const sctx = sc.getContext('2d');
+          sctx.drawImage(video, 0, 0, sc.width, sc.height);
+          const d = sctx.getImageData(0, 0, sc.width, sc.height).data;
+          let r = 0, g = 0, b = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            r += d[i];
+            g += d[i + 1];
+            b += d[i + 2];
+          }
+          const px = sc.width * sc.height;
+          sceneLightRef.current = [r / px / 255, g / px / 255, b / px / 255];
+        } catch {
+          // getImageData throws on a tainted canvas — skip relighting, shader falls back to neutral
+        }
       }
 
       if (!renderBrokenRef.current) {
@@ -239,7 +266,8 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
               maskRef.current,
               selectedItemsRef.current,
               fitRef.current,
-              occlusionEnabledRef.current
+              occlusionEnabledRef.current,
+              sceneLightRef.current
             );
           } else {
             const ctx = activeCanvas.getContext('2d');

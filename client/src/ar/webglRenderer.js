@@ -31,10 +31,11 @@ attribute vec2 a_position;
 attribute vec3 a_texCoordW;
 attribute float a_shade;
 uniform vec2 u_resolution;
+uniform vec2 u_offset;       // screen-px shift, used to offset the contact-shadow pass
 varying vec3 v_texCoordW;
 varying float v_shade;
 void main() {
-  vec2 clip = (a_position / u_resolution) * 2.0 - 1.0;
+  vec2 clip = ((a_position + u_offset) / u_resolution) * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
   v_texCoordW = a_texCoordW;
   v_shade = a_shade;
@@ -54,9 +55,20 @@ uniform sampler2D u_garment;
 uniform sampler2D u_mask;
 uniform vec2 u_resolution;
 uniform float u_occlusion;
+uniform float u_shadowPass;   // 1.0 = render flat dark contact shadow, 0.0 = render garment
+uniform vec3 u_sceneLight;    // average scene RGB (0..1) for relighting; neutral grey = no change
 uniform int u_armCount;
 uniform vec4 u_arms[${MAX_ARM_CAPSULES}];   // xy = segment start, zw = segment end (canvas px, y-down)
 uniform float u_armRadius[${MAX_ARM_CAPSULES}];
+
+// Realism strengths (kept conservative so the garment still reads as itself).
+const float FOLD_STRENGTH = 0.5;     // amplify the garment photo's own light/dark (folds, seams)
+const float CAST_STRENGTH = 0.22;    // how far to pull garment colour toward the room's colour cast
+const float EXPOSURE_STRENGTH = 0.35;// how far to match the room's brightness
+const float REF_LUMA = 0.55;         // scene luminance treated as "neutral exposure"
+const float SHADOW_ALPHA = 0.22;     // contact-shadow opacity
+
+float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
 // Shortest distance from point p to the line segment a-b.
 float segDist(vec2 p, vec2 a, vec2 b) {
@@ -71,6 +83,15 @@ void main() {
     discard;
   }
   vec4 color = texture2D(u_garment, uv);
+  if (color.a < 0.01) discard;
+
+  // Contact-shadow pass: a flat dark copy of the silhouette, offset (in the vertex shader) so it
+  // peeks out below/beside the garment and grounds it on the body instead of floating.
+  if (u_shadowPass > 0.5) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, color.a * SHADOW_ALPHA);
+    return;
+  }
+
   vec2 screenUV = gl_FragCoord.xy / u_resolution;
   vec2 maskUV = vec2(screenUV.x, 1.0 - screenUV.y);
   // smoothstep cleans up the soft, flickery grey band at the mask boundary into a stable soft edge,
@@ -87,8 +108,25 @@ void main() {
     armOcc = min(armOcc, smoothstep(u_armRadius[i] - 2.0, u_armRadius[i], d));
   }
 
+  // Fold relief: push the garment photo's own luminance contrast so existing folds/seams read as
+  // depth rather than flat fabric.
+  float l = luma(color.rgb);
+  vec3 rgb = color.rgb * mix(1.0, 0.78 + 0.42 * l, FOLD_STRENGTH);
+
+  // Scene relight: nudge the garment toward the room's colour cast and brightness so it doesn't look
+  // pasted on. u_sceneLight neutral grey -> cast ~ (1,1,1) and exposure ~ 1, i.e. no change.
+  float sceneLuma = max(luma(u_sceneLight), 0.04);
+  vec3 cast = u_sceneLight / sceneLuma;
+  rgb *= mix(vec3(1.0), cast, CAST_STRENGTH);
+  rgb *= mix(1.0, clamp(sceneLuma / REF_LUMA, 0.6, 1.4), EXPOSURE_STRENGTH);
+
+  // Cylindrical body shading (baked per-column).
+  rgb *= v_shade;
+
   float occlusion = mix(1.0, personMask * armOcc, u_occlusion);
-  gl_FragColor = vec4(color.rgb * v_shade, color.a * occlusion);
+  // Edge feather: erode the semi-transparent rim so the cutout blends instead of looking die-cut.
+  float alpha = color.a * smoothstep(0.0, 0.5, color.a);
+  gl_FragColor = vec4(rgb, alpha * occlusion);
 }
 `;
 
@@ -233,6 +271,9 @@ export function createGLRenderer(canvas) {
     garment: gl.getUniformLocation(program, 'u_garment'),
     mask: gl.getUniformLocation(program, 'u_mask'),
     occlusion: gl.getUniformLocation(program, 'u_occlusion'),
+    offset: gl.getUniformLocation(program, 'u_offset'),
+    shadowPass: gl.getUniformLocation(program, 'u_shadowPass'),
+    sceneLight: gl.getUniformLocation(program, 'u_sceneLight'),
     armCount: gl.getUniformLocation(program, 'u_armCount'),
     arms: gl.getUniformLocation(program, 'u_arms[0]'),
     armRadius: gl.getUniformLocation(program, 'u_armRadius[0]'),
@@ -471,11 +512,20 @@ export function createGLRenderer(canvas) {
     gl.uniform1i(locations.mask, 1);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+    // Pass 1: contact shadow, offset down/right so it grounds the garment on the body.
+    gl.uniform1f(locations.shadowPass, 1.0);
+    gl.uniform2f(locations.offset, canvasW * 0.004, canvasH * 0.013);
+    gl.drawElements(gl.TRIANGLES, GRID.indices.length, gl.UNSIGNED_SHORT, 0);
+
+    // Pass 2: the garment itself.
+    gl.uniform1f(locations.shadowPass, 0.0);
+    gl.uniform2f(locations.offset, 0.0, 0.0);
     gl.drawElements(gl.TRIANGLES, GRID.indices.length, gl.UNSIGNED_SHORT, 0);
   }
 
   return {
-    render(landmarks, mask, items, fit, occlusionEnabled = true) {
+    render(landmarks, mask, items, fit, occlusionEnabled = true, sceneLight = null) {
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -489,6 +539,14 @@ export function createGLRenderer(canvas) {
       gl.useProgram(program);
       gl.uniform2f(locations.resolution, canvas.width, canvas.height);
       gl.uniform1f(locations.occlusion, occlusionEnabled ? 1.0 : 0.0);
+      gl.uniform1f(locations.shadowPass, 0.0);
+      gl.uniform2f(locations.offset, 0.0, 0.0);
+      // Scene relight source — neutral grey (no tint/exposure change) until a real sample arrives.
+      if (sceneLight) {
+        gl.uniform3f(locations.sceneLight, sceneLight[0], sceneLight[1], sceneLight[2]);
+      } else {
+        gl.uniform3f(locations.sceneLight, 0.55, 0.55, 0.55);
+      }
 
       // Arm-in-front occlusion capsules (shared by every garment this frame).
       const caps = getOcclusionCapsules(landmarks, canvas.width, canvas.height);
