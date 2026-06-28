@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bug, Camera, RefreshCw, User } from 'lucide-react';
-import { getPoseLandmarker, detectPose, LANDMARK } from '../ar/poseTracker.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Bug, Camera, Gauge, RefreshCw, User } from 'lucide-react';
+import { getPoseLandmarker, detectPose, LANDMARK, pickDefaultTier } from '../ar/poseTracker.js';
 import { LandmarkOneEuro } from '../ar/oneEuroFilter.js';
 import { createGLRenderer } from '../ar/webglRenderer.js';
 import { renderGarments } from '../ar/garmentRenderer.js';
@@ -82,6 +82,11 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const smoothedLandmarksRef = useRef(null);
   const maskRef = useRef(null);
   const workingFacingModeRef = useRef('user');
+  // Perf HUD counters (refs so the 60fps loop never triggers a re-render; surfaced to state on a
+  // ~500ms cadence instead).
+  const frameCountRef = useRef(0);
+  const fpsWindowStartRef = useRef(0);
+  const poseMsRef = useRef(0);
 
   const [status, setStatus] = useState('Loading AR model...');
   const [error, setError] = useState('');
@@ -94,6 +99,14 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const [showDebug, setShowDebug] = useState(false);
   const [usingGL, setUsingGL] = useState(true); // optimistic default; corrected once init resolves
   const [occlusionEnabled, setOcclusionEnabled] = useState(true);
+  const [quality, setQuality] = useState('auto'); // 'auto' | 'high' | 'fast'
+  const [modelLoading, setModelLoading] = useState(true);
+  const [perf, setPerf] = useState({ fps: 0, poseMs: 0 });
+  // Resolve the user-facing quality choice to a concrete model tier. 'auto' picks per-device.
+  const tier = useMemo(
+    () => (quality === 'auto' ? pickDefaultTier() : quality === 'fast' ? 'lite' : 'full'),
+    [quality]
+  );
   const showDebugRef = useRef(false);
   useEffect(() => {
     showDebugRef.current = showDebug;
@@ -118,12 +131,19 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
     fitRef.current = fit;
   }, [fit]);
 
-  // Load the pose model once; the render loop below picks it up via the ref once ready.
+  // Load the pose model for the active tier; the render loop picks it up via the ref once ready.
+  // Re-runs when the user changes quality (auto/high/fast) — the old landmarker is dropped from the
+  // ref so the loop idles on the last frame until the new tier resolves (cached after first load).
   useEffect(() => {
     let stopped = false;
-    getPoseLandmarker()
+    setModelLoading(true);
+    landmarkerRef.current = null;
+    getPoseLandmarker(tier)
       .then((lm) => {
-        if (!stopped) landmarkerRef.current = lm;
+        if (!stopped) {
+          landmarkerRef.current = lm;
+          setModelLoading(false);
+        }
       })
       .catch((err) => {
         if (!stopped) setError('Failed to load AR model: ' + (err.message || err));
@@ -131,7 +151,7 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
     return () => {
       stopped = true;
     };
-  }, []);
+  }, [tier]);
 
   // WebGL garment renderer (perspective warp + segmentation occlusion), attempted on its own
   // dedicated canvas. Falls back to the 2D canvas renderer on a separate element if WebGL isn't
@@ -180,9 +200,23 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
       }
 
       const now = performance.now();
+
+      // FPS meter: count every rendered frame, publish to state ~twice a second.
+      frameCountRef.current++;
+      if (fpsWindowStartRef.current === 0) {
+        fpsWindowStartRef.current = now;
+      } else if (now - fpsWindowStartRef.current >= 500) {
+        const fps = Math.round((frameCountRef.current * 1000) / (now - fpsWindowStartRef.current));
+        setPerf({ fps, poseMs: Math.round(poseMsRef.current) });
+        fpsWindowStartRef.current = now;
+        frameCountRef.current = 0;
+      }
+
       if (now - lastPoseAtRef.current >= POSE_INTERVAL_MS) {
         lastPoseAtRef.current = now;
+        const poseStart = performance.now();
         const { landmarks, mask } = detectPose(landmarker, video, now);
+        poseMsRef.current = performance.now() - poseStart;
         smoothedLandmarksRef.current = oneEuroRef.current.filter(landmarks, now);
         maskRef.current = mask;
         setNoPose(!landmarks);
@@ -311,13 +345,28 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   }
 
   const mirrored = facingMode === 'user';
-  const loading = !error && status && status !== 'Tracking...';
+  const switchingQuality = modelLoading && status === 'Tracking...';
+  const loading = !error && (switchingQuality || (status && status !== 'Tracking...'));
+  const loadingMessage = switchingQuality
+    ? 'Switching quality…'
+    : status === 'Requesting webcam access...'
+    ? 'Tap "Allow" when your browser asks for camera access'
+    : status;
+  const QUALITY_OPTIONS = [
+    ['auto', 'Auto'],
+    ['high', 'High'],
+    ['fast', 'Fast'],
+  ];
 
   return (
     <div className="inline-block w-full">
       {error && <p className="text-red-600 mb-2">{error}</p>}
       {!error && status && <p className="text-slate-500 mb-2">{status}</p>}
-      {showDebug && <p className="text-slate-400 mb-2 text-xs">{rendererInfo}</p>}
+      {showDebug && (
+        <p className="text-slate-400 mb-2 text-xs">
+          {rendererInfo} · model: {tier} · pose {perf.poseMs}ms
+        </p>
+      )}
       {renderError && (
         <p className="text-red-600 mb-2 text-sm">
           Garment rendering failed: {renderError} (camera + pose tracking below still run)
@@ -349,10 +398,13 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
         {loading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 rounded-lg">
             <div className="h-8 w-8 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-            <span className="text-white text-sm px-3 text-center">
-              {status === 'Requesting webcam access...' ? 'Tap "Allow" when your browser asks for camera access' : status}
-            </span>
+            <span className="text-white text-sm px-3 text-center">{loadingMessage}</span>
           </div>
+        )}
+        {!loading && !error && status === 'Tracking...' && (
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-black/55 text-white text-xs px-2 py-1 rounded-full font-mono">
+            <Gauge className="h-3 w-3" /> {perf.fps} fps
+          </span>
         )}
         {noPose && !error && status === 'Tracking...' && (
           <div className="absolute inset-x-0 bottom-3 text-center">
@@ -376,6 +428,23 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
         >
           <RefreshCw className="h-4 w-4" /> Flip camera
         </button>
+        <div
+          className="min-h-[44px] inline-flex items-center rounded bg-slate-200 p-1"
+          title="Tracking quality — Fast uses a lighter pose model for smoother performance on low-end devices"
+        >
+          <Gauge className="h-4 w-4 text-slate-500 mx-1.5" />
+          {QUALITY_OPTIONS.map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setQuality(value)}
+              className={`px-2.5 py-1.5 text-sm rounded ${
+                quality === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setShowDebug((d) => !d)}
           className="min-h-[44px] inline-flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"

@@ -151,8 +151,13 @@ client/src/
 
 ## AR accuracy notes
 
-- **Pose model**: `pose_landmarker_full` (higher accuracy than `lite`, heavier first load).
-  MediaPipe model/WASM loads from CDN on first use then caches — requires internet on first run.
+- **Pose model**: adaptive `full`/`lite` tier. `full` is more accurate (better garment anchoring);
+  `lite` is ~3MB and noticeably faster on low-end phones. The default is picked per-device
+  (mobile / low core count / low memory → `lite`) and the user can override it with the in-app
+  **Quality** control (Auto / High / Fast). A live FPS + pose-latency HUD shows the cost.
+  MediaPipe model/WASM loads from CDN on first use then caches — requires internet on first run,
+  or self-host the assets via the `VITE_MEDIAPIPE_WASM_BASE` / `VITE_POSE_MODEL_*` env vars
+  (see `client/.env.example`).
 - **Silhouette conform**: pulls the garment mesh edges toward the person mask at each row height,
   so the garment follows actual body width (shoulders wider than waist, waist narrower than hips).
 - **Occlusion**: garment alpha is multiplied by the segmentation mask in screen space, so clothing
@@ -167,7 +172,8 @@ client/src/
 
 - AR is keypoint-anchored perspective warp with silhouette occlusion — a big step up from a flat
   sticker, but not physical cloth simulation (no fabric drape, fold physics, or wrinkle mapping).
-- Performance on low-end phones hasn't been measured. The `full` pose model + mesh renderer is the
-  heaviest combination; there is an automatic WebGL→2D fallback but no lite-model fallback.
+- Performance on low-end phones hasn't been measured on real hardware. The `full` pose model + mesh
+  renderer is the heaviest combination; there is an automatic WebGL→2D fallback, an adaptive
+  `lite`/`full` model tier (auto-selected, user-overridable), and an on-screen FPS HUD to gauge it.
 - No automated test suite — verification is manual + `npm run build` passing.
 - Auth is bare minimum: no email verification, no password reset, no refresh tokens.

@@ -314,6 +314,22 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   good quad instead of flickering the garment out. Both renderers switched to it.
 - [x] Build-verified: `npm run build` passes (1960 modules).
 
+### Phase 11 — AR performance & reach (Tier 2, this session)
+- [x] **Adaptive pose-model tier** (`client/src/ar/poseTracker.js`): `getPoseLandmarker(tier)` now
+  caches a landmarker per tier and serves `full` (accurate) or `lite` (~3MB, faster on weak devices).
+  `pickDefaultTier()` heuristic (mobile UA / `hardwareConcurrency ≤ 4` / `deviceMemory ≤ 4` → `lite`).
+  Both tiers still emit segmentation masks. Model/WASM URLs are now env-overridable
+  (`VITE_MEDIAPIPE_WASM_BASE`, `VITE_POSE_MODEL_FULL`, `VITE_POSE_MODEL_LITE`) for self-hosting an
+  offline demo — documented in new `client/.env.example`.
+- [x] **In-app Quality control + perf HUD** (`WebcamAR.jsx`): Auto/High/Fast segmented control wired
+  to the tier; the model-load effect re-keys on tier and idles the loop on the last frame while the
+  new tier resolves ("Switching quality…" overlay). Live FPS chip (top-left, during tracking) +
+  debug line shows model tier and pose-detect latency (ms). Counters live in refs; state publishes
+  on a ~500ms cadence so the 60fps loop never triggers a re-render.
+- [x] **Mask upload micro-opt** (`webglRenderer.js`): the per-new-mask EMA blend and the
+  Float32→Uint8 byte-pack are now a single pass over the mask (was two) in the steady-state path.
+- [x] Build-verified: `npm run build` passes.
+
 ### Next up
 - [ ] **Manual browser test**: verify fashion-brand aesthetic end-to-end — navbar wordmark, warm
   off-white background, Inter font, mobile bottom sheet, Dashboard stats, Lookbook masonry, 5-step

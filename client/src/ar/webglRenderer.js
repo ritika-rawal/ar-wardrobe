@@ -260,18 +260,23 @@ export function createGLRenderer(canvas) {
     const { width: w, height: h, data } = mask;
     const len = w * h;
     if (!smoothedMaskData || smoothedMaskW !== w || smoothedMaskH !== h) {
-      smoothedMaskData = new Float32Array(data); // first frame (or resized): copy, no blend
+      // First frame (or a resolution change): seed from this frame, no blend.
+      smoothedMaskData = new Float32Array(data);
       smoothedMaskW = w;
       smoothedMaskH = h;
       maskBytes = new Uint8Array(len);
-    } else {
       for (let i = 0; i < len; i++) {
-        smoothedMaskData[i] += (data[i] - smoothedMaskData[i]) * MASK_SMOOTH;
+        const v = smoothedMaskData[i] * 255;
+        maskBytes[i] = v < 0 ? 0 : v > 255 ? 255 : v;
       }
-    }
-    for (let i = 0; i < len; i++) {
-      const v = smoothedMaskData[i] * 255;
-      maskBytes[i] = v < 0 ? 0 : v > 255 ? 255 : v;
+    } else {
+      // Steady state: EMA blend and byte-pack in a single pass over the mask.
+      for (let i = 0; i < len; i++) {
+        const s = smoothedMaskData[i] + (data[i] - smoothedMaskData[i]) * MASK_SMOOTH;
+        smoothedMaskData[i] = s;
+        const v = s * 255;
+        maskBytes[i] = v < 0 ? 0 : v > 255 ? 255 : v;
+      }
     }
     gl.bindTexture(gl.TEXTURE_2D, maskTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, w, h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
