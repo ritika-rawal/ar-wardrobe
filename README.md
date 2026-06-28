@@ -11,7 +11,7 @@ services, no API keys required.
 
 | Module | What it does |
 |--------|-------------|
-| **Digital Closet** | Upload garments (any photo), organize by category / color / season / warmth. Background removal runs in-browser (no server cost, no API key) to produce a clean cutout for the AR overlay. |
+| **Digital Closet** | Upload garments (any photo), organize by category / color / season / warmth. Background removal runs in-browser (no server cost, no API key) to produce a clean cutout for the AR overlay. **Camera capture** detects the garment in a steady frame and highlights it ("lift subject" style) before you tap to capture — no forced auto-shutter. |
 | **Live AR Try-On** | MediaPipe pose tracking drives a WebGL perspective mesh that wraps garments around your body silhouette in real time. Per-category auto-fit, arm-in-front occlusion (via landmark depth), still snapshots and short shareable clips. Works on desktop and mobile (front camera by default). |
 | **Smart Recommendations** | Open-Meteo weather API (free, no key) + rule-based outfit engine suggests looks matched to current conditions and your saved style preferences. |
 | **My Outfits** | Save AR snapshot + outfit combo to revisit or share. |
@@ -128,7 +128,9 @@ client/src/
     poseTracker.js      MediaPipe PoseLandmarker — full model, GPU→CPU fallback, mask output
     oneEuroFilter.js    Velocity-adaptive landmark smoother (prevents jitter without lag)
     homography.js       Quad-to-quad projective transform (Heckbert unit-square method)
-    garmentAnchors.js   Per-category image anchor coords + dest-quad from live landmarks
+    garmentAnchors.js   Per-category image anchor coords + dest-quad from live landmarks + auto-fit
+    garmentAnchorDetect.js  Auto-detects per-garment anchor points from the cutout's alpha bbox
+    foregroundDetect.js   Border flood-fill garment detector for the camera-capture highlight
     webglRenderer.js    16×10 mesh warp + silhouette conform + cylindrical shading (WebGL)
     garmentRenderer.js  2D canvas fallback renderer (same anchor correspondence)
     backgroundRemoval.js  Wraps @imgly/background-removal for client-side cutout
@@ -177,6 +179,11 @@ client/src/
   per-pixel depth, so fingers/hands aren't precisely cut out.
 - "Record clip" produces a short forward `.webm` (canvas `captureStream` + `MediaRecorder`), not a
   true forward-and-reverse boomerang; unsupported browsers simply hide the button.
+- Garment relighting matches the *average* scene colour/brightness — a strongly coloured background
+  can bias the tint (lower `CAST_STRENGTH` in `webglRenderer.js` if so).
+- Camera-capture garment detection uses a border flood-fill, so it expects a reasonably **uniform
+  background** (matches the on-screen tips); on a busy backdrop it simply won't highlight, and you can
+  still capture manually. A learned segmentation (SAM-style) is the upgrade path.
 - Performance on low-end phones hasn't been measured on real hardware. The `full` pose model + mesh
   renderer is the heaviest combination; there is an automatic WebGL→2D fallback, an adaptive
   `lite`/`full` model tier (auto-selected, user-overridable), and an on-screen FPS HUD to gauge it.

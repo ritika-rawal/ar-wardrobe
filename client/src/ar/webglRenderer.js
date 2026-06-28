@@ -221,6 +221,9 @@ function sampleMaskAt(mask, mx, my) {
 // the homography position unchanged) if no mask, or no body found in range.
 function findSilhouetteEdges(mask, canvasW, canvasH, xMinBaseline, xMaxBaseline, rowYCanvas) {
   if (!mask) return null;
+  // Off-canvas rows (e.g. a bottom garment's extrapolated knee line below the frame) would sample a
+  // clamped/garbage mask row and yank the garment edge sideways — skip them, keep the homography.
+  if (rowYCanvas < 0 || rowYCanvas > canvasH) return null;
   const span = xMaxBaseline - xMinBaseline;
   if (span < 1) return null;
   const margin = span * 0.6;
@@ -373,7 +376,7 @@ export function createGLRenderer(canvas) {
   // Steps: homography baseline → silhouette conform → collar ceiling clamp → sleeve bend.
   // collarCeilingY: highest Y the top rows may reach (null = unclamped, used for bottoms).
   // leftArm / rightArm: { shoulder, elbow, wrist } in canvas-px (any field may be null).
-  function buildMesh(H, mask, canvasW, canvasH, collarCeilingY, leftArm, rightArm) {
+  function buildMesh(H, mask, canvasW, canvasH, collarCeilingY, leftArm, rightArm, conformMaxV) {
     for (let r = 0; r < GRID_ROWS; r++) {
       const v = GRID.vForRow[r];
       let xMinBaseline = Infinity;
@@ -390,8 +393,11 @@ export function createGLRenderer(canvas) {
 
       const rowYCanvas = (scratchBaselineY[0] + scratchBaselineY[GRID_COLS - 1]) / 2;
 
-      // Silhouette conform: pull outer edges toward body mask edges.
-      const edges = findSilhouetteEdges(mask, canvasW, canvasH, xMinBaseline, xMaxBaseline, rowYCanvas);
+      // Silhouette conform: pull outer edges toward body mask edges. Disabled past conformMaxV
+      // (used for bottoms, where the legs separate and a single mask span would balloon the garment).
+      const edges = v <= conformMaxV
+        ? findSilhouetteEdges(mask, canvasW, canvasH, xMinBaseline, xMaxBaseline, rowYCanvas)
+        : null;
       let xMinFinal = xMinBaseline;
       let xMaxFinal = xMaxBaseline;
       if (edges) {
@@ -486,8 +492,10 @@ export function createGLRenderer(canvas) {
     const collarCeilingY = isTorso ? getCollarCeilingY(landmarks, canvasW, canvasH) : null;
     const leftArm  = isTorso ? getArmPoints(landmarks, 'left',  canvasW, canvasH) : null;
     const rightArm = isTorso ? getArmPoints(landmarks, 'right', canvasW, canvasH) : null;
+    // Bottoms only conform around the waist/hips; tops conform the whole mesh.
+    const conformMaxV = isTorso ? 1.0 : 0.45;
 
-    buildMesh(H, mask, canvasW, canvasH, collarCeilingY, leftArm, rightArm);
+    buildMesh(H, mask, canvasW, canvasH, collarCeilingY, leftArm, rightArm, conformMaxV);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, scratchPositions, gl.DYNAMIC_DRAW);

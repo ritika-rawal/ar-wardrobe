@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ChevronDown, ChevronUp, Crosshair, Loader2, RefreshCw, Save, Sun, Zap, ZapOff } from 'lucide-react';
+import { Camera, Check, ChevronDown, ChevronUp, Crosshair, Loader2, RefreshCw, Save, Sparkles, Sun } from 'lucide-react';
 import { cutOutGarment } from '../ar/backgroundRemoval.js';
 import { detectGarmentAnchors } from '../ar/garmentAnchorDetect.js';
+import { detectForeground, maskToStencil } from '../ar/foregroundDetect.js';
 import { getDominantColor } from '../ar/dominantColor.js';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -11,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 
 const CATEGORIES = ['top', 'bottom', 'outerwear', 'shoes', 'accessory'];
-const STABILITY_MS = 2000;
+const STABILITY_MS = 900; // how long the frame must hold still before we trust a detection
 const STABILITY_THRESHOLD = 8;
+const DETECT_INTERVAL_MS = 350; // throttle for the (cheap) foreground detector
 const CHECKER = 'repeating-conic-gradient(#e2e8f0 0% 25%, #f8fafc 0% 50%) 0 0 / 20px 20px';
 
 const TIPS = [
@@ -37,8 +39,7 @@ export default function GarmentCapture({ onSaved, onClose }) {
   const [camError, setCamError] = useState('');
   const [switchingCam, setSwitchingCam] = useState(false);
   const [tipsOpen, setTipsOpen] = useState(false);
-  const [autoCapture, setAutoCapture] = useState(true);
-  const [countdown, setCountdown] = useState(null);
+  const [garmentReady, setGarmentReady] = useState(false); // a clean garment region is detected & steady
   const [quality, setQuality] = useState({ light: 'ok', focus: 'ok' });
 
   const videoRef = useRef(null);
@@ -48,11 +49,13 @@ export default function GarmentCapture({ onSaved, onClose }) {
   const rafRef = useRef(null);
   const stableStartRef = useRef(null);
   const prevBrightnessRef = useRef(null);
-  const countdownIntervalRef = useRef(null);
   const qualityThrottleRef = useRef(0);
-  const autoCaptureRef = useRef(true); // mirror of autoCapture for RAF closure
-  const phaseRef = useRef('live');     // mirror of phase for RAF closure
-  const capturedRef = useRef(false);   // guard against double-trigger
+  const detectThrottleRef = useRef(0);    // throttle for foreground detection
+  const detectionRef = useRef(null);      // latest detectForeground() result
+  const garmentReadyRef = useRef(false);  // mirror of garmentReady for the RAF closure
+  const mirrorRef = useRef(false);        // whether the preview is CSS-mirrored (front camera)
+  const phaseRef = useRef('live');        // mirror of phase for RAF closure
+  const capturedRef = useRef(false);      // guard against double-trigger
 
   const [cutoutUrl, setCutoutUrl] = useState('');
   const [cutoutBlob, setCutoutBlob] = useState(null);
@@ -61,8 +64,8 @@ export default function GarmentCapture({ onSaved, onClose }) {
   const [color, setColor] = useState('');
 
   // Keep refs in sync with state so RAF can read them without stale closures
-  useEffect(() => { autoCaptureRef.current = autoCapture; }, [autoCapture]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { mirrorRef.current = facingMode === 'user'; }, [facingMode]);
 
   // Camera setup
   useEffect(() => {
@@ -94,13 +97,15 @@ export default function GarmentCapture({ onSaved, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facingMode, phase]);
 
-  // Guide overlay + stability detection RAF loop
+  // Live preview loop: lighting/focus hints + stability + background garment detection + highlight.
+  // No forced countdown — when the frame is steady and a clean garment region is found, we light it
+  // up (iPhone "lift subject" style) and invite the user to capture; capture is always their choice.
   useEffect(() => {
     if (phase !== 'live') { cancelRAF(); return; }
 
     const offscreen = document.createElement('canvas');
     offscreen.width = 80; offscreen.height = 60;
-    const offCtx = offscreen.getContext('2d');
+    const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
 
     function loop() {
       rafRef.current = requestAnimationFrame(loop);
@@ -113,26 +118,18 @@ export default function GarmentCapture({ onSaved, onClose }) {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, W, H);
 
-      // Guide rectangle dimensions
-      const gW = W * 0.6, gH = H * 0.75;
-      const gX = (W - gW) / 2, gY = (H - gH) / 2;
-
-      // ── Stability detection ──────────────────────────────────────────────
+      // ── Brightness (drives both the lighting hint and the stability gate) ──
       offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
       const px = offCtx.getImageData(0, 0, offscreen.width, offscreen.height).data;
       let brightnessSum = 0;
-      for (let i = 0; i < px.length; i += 4) brightnessSum += (px[i] + px[i+1] + px[i+2]) / 3;
+      for (let i = 0; i < px.length; i += 4) brightnessSum += (px[i] + px[i + 1] + px[i + 2]) / 3;
       const brightness = brightnessSum / (offscreen.width * offscreen.height);
 
-      // Quality hints (throttled)
       const now = Date.now();
       if (now - qualityThrottleRef.current > 500) {
         qualityThrottleRef.current = now;
         let blurSum = 0, count = 0;
-        for (let i = 0; i < px.length - 4; i += 4) {
-          const d = Math.abs(px[i] - px[i+4]);
-          blurSum += d; count++;
-        }
+        for (let i = 0; i < px.length - 4; i += 4) { blurSum += Math.abs(px[i] - px[i + 4]); count++; }
         const blurScore = count ? blurSum / count : 0;
         setQuality({
           light: brightness < 40 ? 'dark' : brightness > 210 ? 'bright' : 'ok',
@@ -140,91 +137,82 @@ export default function GarmentCapture({ onSaved, onClose }) {
         });
       }
 
+      // Stability: has the frame held still long enough to trust a detection?
       let stable = false;
       if (prevBrightnessRef.current !== null) {
         if (Math.abs(brightness - prevBrightnessRef.current) < STABILITY_THRESHOLD) {
           if (!stableStartRef.current) stableStartRef.current = now;
-          const stableDur = now - stableStartRef.current;
-          stable = stableDur >= STABILITY_MS;
-
-          // Trigger countdown once stable
-          if (stableDur >= STABILITY_MS && autoCaptureRef.current && !countdownIntervalRef.current && phaseRef.current === 'live' && !capturedRef.current) {
-            setCountdown(3);
-            countdownIntervalRef.current = setInterval(() => {
-              setCountdown((c) => {
-                if (c <= 1) {
-                  clearInterval(countdownIntervalRef.current);
-                  countdownIntervalRef.current = null;
-                  if (!capturedRef.current) { capturedRef.current = true; triggerCapture(); }
-                  return null;
-                }
-                return c - 1;
-              });
-            }, 1000);
-          }
+          stable = now - stableStartRef.current >= STABILITY_MS;
         } else {
           stableStartRef.current = null;
-          // Reset countdown if motion detected
-          if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
-            setCountdown(null);
-          }
         }
       }
       prevBrightnessRef.current = brightness;
 
-      // ── Draw guide overlay ───────────────────────────────────────────────
-      const color = stable ? '#22c55e' : 'rgba(255,255,255,0.85)';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      // ── Foreground (garment) detection — throttled, only run once the frame is steady ──
+      if (now - detectThrottleRef.current > DETECT_INTERVAL_MS) {
+        detectThrottleRef.current = now;
+        detectionRef.current = stable ? detectForeground(video) : null;
+      }
+      const det = detectionRef.current;
+      const ready = !!(stable && det && det.ok);
+      if (ready !== garmentReadyRef.current) {
+        garmentReadyRef.current = ready;
+        setGarmentReady(ready);
+      }
 
-      // Main rect
-      ctx.strokeRect(gX, gY, gW, gH);
+      // ── Draw ──
+      const mirror = mirrorRef.current;
+      if (ready) {
+        // Dim the frame, punch the detected garment back to full brightness, glow its outline.
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.save();
+        if (mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.drawImage(maskToStencil(det), 0, 0, W, H);
+        ctx.restore();
+        ctx.globalCompositeOperation = 'source-over';
 
-      // Corner markers (L-shapes)
-      const CL = 20;
-      const corners = [
-        [gX, gY, CL, 0, 0, CL],
-        [gX + gW, gY, -CL, 0, 0, CL],
-        [gX, gY + gH, CL, 0, 0, -CL],
-        [gX + gW, gY + gH, -CL, 0, 0, -CL],
-      ];
-      ctx.lineWidth = 3;
-      corners.forEach(([cx, cy, dx1, dy1, dx2, dy2]) => {
-        ctx.beginPath();
-        ctx.moveTo(cx + dx1, cy + dy1);
-        ctx.lineTo(cx, cy);
-        ctx.lineTo(cx + dx2, cy + dy2);
+        const sx = W / det.w, sy = H / det.h;
+        const bw = (det.bbox.maxX - det.bbox.minX) * sx;
+        const bh = (det.bbox.maxY - det.bbox.minY) * sy;
+        const bx = mirror ? W - det.bbox.maxX * sx : det.bbox.minX * sx;
+        const by = det.bbox.minY * sy;
+        ctx.strokeStyle = '#818cf8';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#6366f1';
+        ctx.shadowBlur = 16;
+        roundRect(ctx, bx - 6, by - 6, bw + 12, bh + 12, 12);
         ctx.stroke();
-      });
-
-      // "Hold still…" text
-      if (stableStartRef.current && !stable && autoCaptureRef.current) {
-        const elapsed = now - stableStartRef.current;
-        if (elapsed > 500) {
+        ctx.restore();
+      } else {
+        // Plain framing guide while waiting for a steady, clean garment.
+        const gW = W * 0.6, gH = H * 0.75, gX = (W - gW) / 2, gY = (H - gH) / 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 3;
+        const CL = 20;
+        const corners = [
+          [gX, gY, CL, 0, 0, CL],
+          [gX + gW, gY, -CL, 0, 0, CL],
+          [gX, gY + gH, CL, 0, 0, -CL],
+          [gX + gW, gY + gH, -CL, 0, 0, -CL],
+        ];
+        corners.forEach(([cx, cy, dx1, dy1, dx2, dy2]) => {
+          ctx.beginPath();
+          ctx.moveTo(cx + dx1, cy + dy1);
+          ctx.lineTo(cx, cy);
+          ctx.lineTo(cx + dx2, cy + dy2);
+          ctx.stroke();
+        });
+        if (stableStartRef.current && !stable) {
           ctx.fillStyle = 'rgba(255,255,255,0.9)';
           ctx.font = 'bold 14px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('Hold still…', W / 2, gY - 10);
         }
       }
-
-      // Countdown number
-      setCountdown((c) => {
-        if (c !== null) {
-          ctx.fillStyle = 'white';
-          ctx.font = 'bold 80px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.shadowColor = 'black';
-          ctx.shadowBlur = 8;
-          ctx.fillText(String(c), W / 2, H / 2);
-          ctx.shadowBlur = 0;
-          ctx.textBaseline = 'alphabetic';
-        }
-        return c;
-      });
     }
 
     rafRef.current = requestAnimationFrame(loop);
@@ -232,12 +220,23 @@ export default function GarmentCapture({ onSaved, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
   function cancelRAF() {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
-    setCountdown(null);
     stableStartRef.current = null;
     prevBrightnessRef.current = null;
+    detectionRef.current = null;
+    garmentReadyRef.current = false;
+    setGarmentReady(false);
   }
 
   // Cleanup on unmount
@@ -248,8 +247,6 @@ export default function GarmentCapture({ onSaved, onClose }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function triggerCapture() { doCapture(); }
 
   async function doCapture() {
     const video = videoRef.current;
@@ -286,12 +283,6 @@ export default function GarmentCapture({ onSaved, onClose }) {
   function handleCapture() {
     if (capturedRef.current) return;
     capturedRef.current = true;
-    // Cancel any running auto-capture countdown
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-      setCountdown(null);
-    }
     doCapture();
   }
 
@@ -416,35 +407,29 @@ export default function GarmentCapture({ onSaved, onClose }) {
           {/* Camera controls */}
           {phase === 'live' && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1 text-xs"
-                  onClick={() => {
-                    setAutoCapture((v) => !v);
-                    if (countdownIntervalRef.current) {
-                      clearInterval(countdownIntervalRef.current);
-                      countdownIntervalRef.current = null;
-                      setCountdown(null);
-                    }
-                  }}
-                >
-                  {autoCapture ? <Zap className="h-3 w-3 text-green-600" /> : <ZapOff className="h-3 w-3" />}
-                  Auto-capture: {autoCapture ? 'on' : 'off'}
-                </Button>
-              </div>
+              {garmentReady ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  Garment detected and highlighted — capture it?
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Hold the garment steady in frame — we’ll highlight it when it’s ready.
+                </p>
+              )}
               <div className="flex gap-3">
-                <Button onClick={handleCapture} disabled={!!camError || switchingCam} className="flex-1 gap-2">
-                  <Camera className="h-4 w-4" /> Capture
+                <Button
+                  onClick={handleCapture}
+                  disabled={!!camError || switchingCam}
+                  className={`flex-1 gap-2 transition-colors ${garmentReady ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+                >
+                  {garmentReady ? <Sparkles className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                  {garmentReady ? 'Capture garment' : 'Capture'}
                 </Button>
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => {
-                    setAutoCapture(false);
-                    setFacingMode((m) => (m === 'user' ? 'environment' : 'user'));
-                  }}
+                  onClick={() => setFacingMode((m) => (m === 'user' ? 'environment' : 'user'))}
                   disabled={switchingCam}
                   title="Flip camera"
                 >

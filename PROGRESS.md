@@ -372,6 +372,35 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   temp/condition fields.
 - [x] Build-verified after each change (`npm run build`).
 
+### Phase 14 — bottoms fix + smart capture + relight polish (this session)
+- [x] **Bottoms artifacts fixed** (`webglRenderer.js`): (1) `findSilhouetteEdges` now skips rows whose
+  Y is off-canvas — a bottom garment's extrapolated knee line sits below the frame, and sampling that
+  clamped mask row was yanking the garment edge sideways. (2) The silhouette conform is now gated to
+  `v <= 0.45` for bottoms: below the hips the legs separate, so a single left/right mask span
+  ballooned pants into a skirt shape — the homography taper is cleaner there. Tops still conform the
+  full mesh.
+- [x] **Relight stabilised** (`WebcamAR.jsx`): the per-frame scene-light sample is now EMA-smoothed
+  (0.1) so the garment tone settles instead of flickering with frame noise.
+- [x] **Capture redesigned — detect & confirm, not forced auto-capture** (`GarmentCapture.jsx`,
+  `client/src/ar/foregroundDetect.js` new): removed the forced 3-2-1 countdown auto-capture. A cheap
+  border-flood-fill foreground detector runs in the background on the steady live frame; when it finds
+  a clean, centred garment region the UI dims the frame and **highlights the detected garment** (iPhone
+  "lift subject" style — punched-out stencil + glowing outline) and invites the user to capture (green
+  "Capture garment" CTA). Capture is always the user's tap; detection just assists. Highlight is
+  mirror-aware for the front camera; stencil cached per-detection so the 60fps draw loop doesn't
+  rebuild it.
+
+### Research notes — further AR try-on / capture improvements (backlog)
+- **True body segmentation for try-on occlusion**: replace landmark-z arm capsules with a real
+  person/clothes parser (e.g. selfie-segmentation or a body-parsing model) for per-pixel occlusion.
+- **Garment warp from cloth model**: current is keypoint perspective warp; a thin-plate-spline or
+  learned drape would add real folds. Heavy.
+- **Capture: learned saliency / SAM-style segmentation** instead of flood-fill, to handle busy
+  backgrounds (flood-fill needs a fairly uniform backdrop — by design it stays quiet otherwise).
+- **Auto-category + measurement**: infer category and rough garment dimensions from the cutout to set
+  fit automatically.
+- **Self-hosted MediaPipe** for a fully offline demo (env hooks already in place).
+
 ### Next up
 - [ ] **Manual browser test**: verify fashion-brand aesthetic end-to-end — navbar wordmark, warm
   off-white background, Inter font, mobile bottom sheet, Dashboard stats, Lookbook masonry, 5-step

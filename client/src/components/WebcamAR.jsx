@@ -252,7 +252,16 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
             b += d[i + 2];
           }
           const px = sc.width * sc.height;
-          sceneLightRef.current = [r / px / 255, g / px / 255, b / px / 255];
+          const sample = [r / px / 255, g / px / 255, b / px / 255];
+          // EMA-smooth so the garment tone settles instead of flickering with every frame's noise.
+          const prev = sceneLightRef.current;
+          sceneLightRef.current = prev
+            ? [
+                prev[0] + (sample[0] - prev[0]) * 0.1,
+                prev[1] + (sample[1] - prev[1]) * 0.1,
+                prev[2] + (sample[2] - prev[2]) * 0.1,
+              ]
+            : sample;
         } catch {
           // getImageData throws on a tainted canvas — skip relighting, shader falls back to neutral
         }
