@@ -5,6 +5,7 @@ import ClothingCard from '../components/ClothingCard.jsx';
 import UploadForm from '../components/UploadForm.jsx';
 import GarmentCapture from '../components/GarmentCapture.jsx';
 import { cutOutGarment } from '../ar/backgroundRemoval.js';
+import { detectGarmentAnchors } from '../ar/garmentAnchorDetect.js';
 import EditItemModal from '../components/EditItemModal.jsx';
 import CardGridSkeleton from '../components/CardGridSkeleton.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -85,7 +86,7 @@ export default function Closet() {
       });
       await loadItems();
       toast.success(`Added "${res.data.item.name}" to your closet`);
-      processBackgroundRemoval(res.data.item._id, file);
+      processBackgroundRemoval(res.data.item._id, file, res.data.item.category);
       processAutoTag(res.data.item._id);
     } catch (err) {
       const msg = err.response?.data?.error || 'Upload failed';
@@ -107,12 +108,16 @@ export default function Closet() {
     }
   }
 
-  async function processBackgroundRemoval(itemId, file) {
+  async function processBackgroundRemoval(itemId, file, category) {
     setProcessingIds((prev) => new Set(prev).add(itemId));
     try {
       const cutoutBlob = await cutOutGarment(file);
       const assetForm = new FormData();
       assetForm.append('image', cutoutBlob, 'cutout.png');
+      // Auto-detect per-garment AR anchors from the cutout so the overlay aligns to *this* garment's
+      // shoulders/hips instead of assuming the seed flat-lay layout. Best-effort — null falls back.
+      const anchors = await detectGarmentAnchors(cutoutBlob, category);
+      if (anchors) assetForm.append('imageAnchors', JSON.stringify(anchors));
       const res = await api.post(`/wardrobe/${itemId}/try-on-asset`, assetForm, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });

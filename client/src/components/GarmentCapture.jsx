@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, ChevronDown, ChevronUp, Crosshair, Loader2, RefreshCw, Save, Sun, Zap, ZapOff } from 'lucide-react';
 import { cutOutGarment } from '../ar/backgroundRemoval.js';
+import { detectGarmentAnchors } from '../ar/garmentAnchorDetect.js';
 import { getDominantColor } from '../ar/dominantColor.js';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -312,7 +313,12 @@ export default function GarmentCapture({ onSaved, onClose }) {
       fd.append('color', color.trim());
       const { data } = await api.post('/wardrobe', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const item = data.item;
-      const updated = await api.put(`/wardrobe/${item._id}`, { tryOnAssetUrl: item.imageUrl });
+      // Detect per-garment AR anchors from the cutout (best-effort) so the captured item aligns to
+      // its own shoulders/hips in try-on. Saved alongside the cutout (which is also the imageUrl).
+      const anchors = await detectGarmentAnchors(cutoutBlob, category);
+      const updates = { tryOnAssetUrl: item.imageUrl };
+      if (anchors) updates.imageAnchors = anchors;
+      const updated = await api.put(`/wardrobe/${item._id}`, updates);
       // Fire-and-forget auto-tag (best effort)
       api.post(`/wardrobe/${item._id}/auto-tag`).catch(() => {});
       toast.success(`"${item.name}" added — AR-ready`);

@@ -15,6 +15,15 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Validates/normalizes AR image anchors: must be 4 finite {x,y} points. Returns the cleaned array
+// or null if the shape is wrong (caller then leaves the field untouched).
+function sanitizeAnchors(value) {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const cleaned = value.map((p) => ({ x: Number(p?.x), y: Number(p?.y) }));
+  if (cleaned.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
+  return cleaned;
+}
+
 // List items for the logged-in user, optional filters via query params.
 router.get('/', async (req, res) => {
   const { category, season, color } = req.query;
@@ -65,9 +74,20 @@ router.post('/:id/try-on-asset', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'image file is required' });
 
+    const update = { tryOnAssetUrl: toPublicUrl(req, req.file.filename) };
+    // imageAnchors arrives as a JSON string in the multipart body (auto-detected on the client).
+    if (req.body.imageAnchors) {
+      try {
+        const anchors = sanitizeAnchors(JSON.parse(req.body.imageAnchors));
+        if (anchors) update.imageAnchors = anchors;
+      } catch {
+        // malformed anchors are non-fatal — keep the cutout, skip anchors
+      }
+    }
+
     const item = await ClothingItem.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId },
-      { tryOnAssetUrl: toPublicUrl(req, req.file.filename) },
+      update,
       { new: true }
     );
     if (!item) return res.status(404).json({ error: 'Item not found' });
@@ -100,7 +120,7 @@ router.post('/:id/auto-tag', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, category, color, warmth, seasons, tryOnAssetUrl, tags } = req.body;
+  const { name, category, color, warmth, seasons, tryOnAssetUrl, tags, imageAnchors } = req.body;
   const update = {};
   if (name !== undefined) update.name = name;
   if (category !== undefined) update.category = category;
@@ -109,6 +129,10 @@ router.put('/:id', async (req, res) => {
   if (seasons !== undefined) update.seasons = Array.isArray(seasons) ? seasons : seasons.split(',');
   if (tryOnAssetUrl !== undefined) update.tryOnAssetUrl = tryOnAssetUrl;
   if (tags !== undefined) update.tags = Array.isArray(tags) ? tags : tags.split(',');
+  if (imageAnchors !== undefined) {
+    const anchors = sanitizeAnchors(imageAnchors);
+    if (anchors) update.imageAnchors = anchors;
+  }
 
   const item = await ClothingItem.findOneAndUpdate(
     { _id: req.params.id, userId: req.userId },

@@ -42,6 +42,34 @@ export function getLayer(category) {
   return LAYER_IMAGE_ANCHORS[category] ? category : 'top';
 }
 
+// Returns the per-garment image anchors detected at upload time (garmentAnchorDetect.js) if the
+// item carries a valid set, else the calibrated template anchors for the layer. Lets uploaded /
+// captured garments — whose shoulders/hips sit at different pixels than the seed flat-lays — warp
+// correctly instead of all assuming the seed layout.
+export function resolveImageAnchors(item, layer) {
+  const a = item?.imageAnchors;
+  if (
+    Array.isArray(a) &&
+    a.length === 4 &&
+    a.every((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+  ) {
+    return a;
+  }
+  return LAYER_IMAGE_ANCHORS[getLayer(layer)];
+}
+
+// MediaPipe reports per-landmark visibility 0..1; below this we treat a landmark as unreliable and
+// either synthesize a replacement or hold the last good quad, rather than anchoring to noise.
+const VIS_THRESHOLD = 0.5;
+// How long a stale-but-good destination quad may keep being reused after tracking is lost/occluded,
+// so the garment doesn't flicker out on a single dropped or low-confidence frame.
+const QUAD_HOLD_MS = 500;
+const lastGoodQuad = {}; // layer -> { quad, ts }
+
+function lmOk(lm) {
+  return lm && (lm.visibility ?? 1) >= VIS_THRESHOLD;
+}
+
 function toPx(lm, w, h) {
   return lm ? { x: lm.x * w, y: lm.y * h } : null;
 }
@@ -79,16 +107,46 @@ export function getArmPoints(landmarks, side, canvasW, canvasH) {
   };
 }
 
+// Tops/outerwear anchor to shoulders+hips. Shoulders are the critical, almost-always-visible anchor
+// (they set scale + rotation), so they're gated strictly. Hips are often low-confidence or below the
+// frame edge in chest-up desk framing — rather than dropping the garment, synthesize a hip line one
+// torso-length below the shoulders. The WebGL silhouette-conform pulls the width to the real body
+// anyway, so a synthesized hip line is a fine starting point and beats noisy/garbage hip landmarks.
+function getTopQuadPx(landmarks, canvasW, canvasH) {
+  const lsLm = landmarks[LANDMARK.LEFT_SHOULDER];
+  const rsLm = landmarks[LANDMARK.RIGHT_SHOULDER];
+  if (!lmOk(lsLm) || !lmOk(rsLm)) return null;
+  const ls = toPx(lsLm, canvasW, canvasH);
+  const rs = toPx(rsLm, canvasW, canvasH);
+
+  const lhLm = landmarks[LANDMARK.LEFT_HIP];
+  const rhLm = landmarks[LANDMARK.RIGHT_HIP];
+  let lh, rh;
+  if (lmOk(lhLm) && lmOk(rhLm)) {
+    lh = toPx(lhLm, canvasW, canvasH);
+    rh = toPx(rhLm, canvasW, canvasH);
+  } else {
+    const torso = distPts(ls, rs) * 1.5; // ~torso length relative to shoulder width
+    lh = { x: ls.x, y: ls.y + torso };
+    rh = { x: rs.x, y: rs.y + torso };
+  }
+  return [ls, rs, rh, lh]; // order matches LAYER_LANDMARKS.top: LS, RS, RH, LH
+}
+
 // Bottoms anchor to hips+knees, but a typical desk webcam frames chest-up — knees are very
 // often out of shot. Rather than letting bottoms silently disappear, extrapolate a
 // knee-equivalent point by continuing the shoulder->hip line further down.
 function getBottomQuadPx(landmarks, canvasW, canvasH) {
-  const lh = toPx(landmarks[LANDMARK.LEFT_HIP], canvasW, canvasH);
-  const rh = toPx(landmarks[LANDMARK.RIGHT_HIP], canvasW, canvasH);
-  if (!lh || !rh) return null;
+  const lhLm = landmarks[LANDMARK.LEFT_HIP];
+  const rhLm = landmarks[LANDMARK.RIGHT_HIP];
+  if (!lmOk(lhLm) || !lmOk(rhLm)) return null;
+  const lh = toPx(lhLm, canvasW, canvasH);
+  const rh = toPx(rhLm, canvasW, canvasH);
 
-  let lk = toPx(landmarks[LANDMARK.LEFT_KNEE], canvasW, canvasH);
-  let rk = toPx(landmarks[LANDMARK.RIGHT_KNEE], canvasW, canvasH);
+  const lkLm = landmarks[LANDMARK.LEFT_KNEE];
+  const rkLm = landmarks[LANDMARK.RIGHT_KNEE];
+  let lk = lmOk(lkLm) ? toPx(lkLm, canvasW, canvasH) : null;
+  let rk = lmOk(rkLm) ? toPx(rkLm, canvasW, canvasH) : null;
   if (!lk || !rk) {
     const ls = toPx(landmarks[LANDMARK.LEFT_SHOULDER], canvasW, canvasH);
     const rs = toPx(landmarks[LANDMARK.RIGHT_SHOULDER], canvasW, canvasH);
@@ -100,20 +158,30 @@ function getBottomQuadPx(landmarks, canvasW, canvasH) {
   return [lh, rh, rk, lk];
 }
 
-// Resolves the destination quad (in canvas pixels) for a category from the live landmarks.
-// Returns null if required landmarks are missing entirely (e.g. nobody in frame).
+// Resolves the destination quad (in canvas pixels) for a category from the live landmarks, with
+// visibility gating. Returns null if the critical landmarks are missing/low-confidence.
 export function getDestQuadPx(landmarks, category, canvasW, canvasH) {
+  if (!landmarks) return null;
   const layer = getLayer(category);
-  if (layer === 'bottom') return getBottomQuadPx(landmarks, canvasW, canvasH);
+  return layer === 'bottom'
+    ? getBottomQuadPx(landmarks, canvasW, canvasH)
+    : getTopQuadPx(landmarks, canvasW, canvasH);
+}
 
-  const keys = LAYER_LANDMARKS[layer];
-  const points = [];
-  for (const key of keys) {
-    const lm = landmarks[LANDMARK[key]];
-    if (!lm) return null;
-    points.push({ x: lm.x * canvasW, y: lm.y * canvasH });
+// Same as getDestQuadPx but adds short-lived hysteresis: a freshly-resolved quad is cached per
+// layer, and if the next frame can't resolve one (a single dropped/occluded/low-confidence frame),
+// the last good quad keeps being used for up to QUAD_HOLD_MS so the garment doesn't flicker out.
+export function getStableDestQuad(landmarks, category, canvasW, canvasH) {
+  const layer = getLayer(category);
+  const quad = getDestQuadPx(landmarks, category, canvasW, canvasH);
+  const now = (typeof performance !== 'undefined' ? performance : Date).now();
+  if (quad) {
+    lastGoodQuad[layer] = { quad, ts: now };
+    return quad;
   }
-  return points;
+  const cached = lastGoodQuad[layer];
+  if (cached && now - cached.ts < QUAD_HOLD_MS) return cached.quad;
+  return null;
 }
 
 function mid(a, b) {

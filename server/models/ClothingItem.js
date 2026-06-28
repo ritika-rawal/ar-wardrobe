@@ -13,6 +13,13 @@ const clothingItemSchema = new mongoose.Schema(
     warmth: { type: Number, min: 1, max: 5, default: 3 }, // 1 = very light, 5 = very warm
     imageUrl: { type: String, required: true }, // original uploaded photo
     tryOnAssetUrl: { type: String, default: null }, // transparent PNG used by AR overlay
+    // Per-garment AR anchor points (normalized 0..1 image coords), auto-detected from the cutout at
+    // upload time (client: garmentAnchorDetect.js). 4 points in LAYER_IMAGE_ANCHORS order; absent =
+    // renderer falls back to the calibrated template anchors for the category.
+    imageAnchors: {
+      type: [{ _id: false, x: Number, y: Number }],
+      default: undefined,
+    },
     tags: { type: [String], default: [] },
     autoTagged: { type: Boolean, default: false },
     styleTags: { type: [String], default: [] },

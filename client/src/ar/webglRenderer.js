@@ -1,13 +1,11 @@
 import { quadToQuad, applyH } from './homography.js';
 import {
-  LAYER_IMAGE_ANCHORS,
-  getLayer,
-  getDestQuadPx,
+  resolveImageAnchors,
+  getStableDestQuad,
   applyFitToQuad,
   getCollarCeilingY,
   getArmPoints,
 } from './garmentAnchors.js';
-import { LANDMARK } from './poseTracker.js';
 
 // Mesh resolution: dense enough that the silhouette-conform step (below) reads as a smooth body
 // contour rather than a stepped outline, sparse enough to stay trivial on a GPU (~270 triangles).
@@ -235,6 +233,18 @@ export function createGLRenderer(canvas) {
   let maskUploaded = false;
   let lastMaskRef = null;
 
+  // Temporal mask smoothing: the raw segmentation mask edge wobbles frame-to-frame, which makes the
+  // silhouette-conform step jitter the garment's left/right edges. An exponential moving average
+  // across frames steadies the edge (and therefore the conformed garment) while still keeping up
+  // when the body actually moves. The smoothed buffer doubles as the source for both the GPU
+  // occlusion texture and the CPU silhouette-edge search, so the two stay consistent.
+  const MASK_SMOOTH = 0.5;
+  let smoothedMaskData = null;
+  let smoothedMaskW = 0;
+  let smoothedMaskH = 0;
+  let maskBytes = null;
+  let renderMask = null; // smoothed { width, height, data }, reused for silhouette conform
+
   const garmentTextures = new Map(); // src -> { image, texture, uploaded }
 
   function getOrCreateGarment(src) {
@@ -246,15 +256,27 @@ export function createGLRenderer(canvas) {
     return entry;
   }
 
-  function uploadMask(mask) {
+  function updateMask(mask) {
     const { width: w, height: h, data } = mask;
-    const bytes = new Uint8Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-      bytes[i] = Math.max(0, Math.min(255, Math.round(data[i] * 255)));
+    const len = w * h;
+    if (!smoothedMaskData || smoothedMaskW !== w || smoothedMaskH !== h) {
+      smoothedMaskData = new Float32Array(data); // first frame (or resized): copy, no blend
+      smoothedMaskW = w;
+      smoothedMaskH = h;
+      maskBytes = new Uint8Array(len);
+    } else {
+      for (let i = 0; i < len; i++) {
+        smoothedMaskData[i] += (data[i] - smoothedMaskData[i]) * MASK_SMOOTH;
+      }
+    }
+    for (let i = 0; i < len; i++) {
+      const v = smoothedMaskData[i] * 255;
+      maskBytes[i] = v < 0 ? 0 : v > 255 ? 255 : v;
     }
     gl.bindTexture(gl.TEXTURE_2D, maskTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, w, h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, w, h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, maskBytes);
     maskUploaded = true;
+    renderMask = { width: w, height: h, data: smoothedMaskData };
   }
 
   // Scratch buffers reused every frame to avoid per-frame GC churn.
@@ -361,7 +383,7 @@ export function createGLRenderer(canvas) {
     }
   }
 
-  function drawGarment(entry, layer, landmarks, mask, canvasW, canvasH, fit) {
+  function drawGarment(entry, layer, anchors, landmarks, mask, canvasW, canvasH, fit) {
     const img = entry.image;
     if (!img.complete || img.naturalWidth === 0) return;
     if (!entry.uploaded) {
@@ -370,10 +392,10 @@ export function createGLRenderer(canvas) {
       entry.uploaded = true;
     }
 
-    const destQuad = getDestQuadPx(landmarks, layer, canvasW, canvasH);
+    const destQuad = getStableDestQuad(landmarks, layer, canvasW, canvasH);
     if (!destQuad) return;
     const fittedQuad = applyFitToQuad(destQuad, fit);
-    const H = quadToQuad(LAYER_IMAGE_ANCHORS[getLayer(layer)], fittedQuad);
+    const H = quadToQuad(anchors, fittedQuad);
 
     // Collar ceiling and arm points only matter for tops/outerwear, not bottoms.
     const isTorso = layer === 'top' || layer === 'outerwear';
@@ -417,7 +439,7 @@ export function createGLRenderer(canvas) {
       if (!landmarks) return;
 
       if (mask && mask !== lastMaskRef) {
-        uploadMask(mask);
+        updateMask(mask);
         lastMaskRef = mask;
       }
 
@@ -432,7 +454,10 @@ export function createGLRenderer(canvas) {
         const src = item.tryOnAssetUrl || item.imageUrl;
         if (!src) continue;
         const layer = item.category === 'bottom' ? 'bottom' : item.category;
-        drawGarment(getOrCreateGarment(src), layer, landmarks, mask, canvas.width, canvas.height, fit);
+        const anchors = resolveImageAnchors(item, layer);
+        // Pass the smoothed mask (not the raw frame mask) to the silhouette conform so the garment
+        // edges don't inherit the raw mask's per-frame wobble.
+        drawGarment(getOrCreateGarment(src), layer, anchors, landmarks, renderMask, canvas.width, canvas.height, fit);
       }
     },
     destroy() {

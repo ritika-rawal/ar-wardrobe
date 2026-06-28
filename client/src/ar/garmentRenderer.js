@@ -1,4 +1,4 @@
-import { LAYER_IMAGE_ANCHORS, getLayer, getDestQuadPx, applyFitToQuad } from './garmentAnchors.js';
+import { resolveImageAnchors, getStableDestQuad, applyFitToQuad } from './garmentAnchors.js';
 
 // Cache loaded <img> elements by src so we don't reload every frame.
 const imageCache = new Map();
@@ -20,13 +20,13 @@ function loadImage(src) {
  * landmarks; the rest of the garment follows along via uniform scale, so it can't shear/taper
  * the way the WebGL path can, but stays visually close for modest poses.
  */
-function drawGarment(ctx, img, landmarks, canvasW, canvasH, layer, fit = {}) {
+function drawGarment(ctx, img, item, landmarks, canvasW, canvasH, layer, fit = {}) {
   if (!img.complete || img.naturalWidth === 0) return; // not loaded yet, skip this frame
 
-  const destQuad = getDestQuadPx(landmarks, layer, canvasW, canvasH);
+  const destQuad = getStableDestQuad(landmarks, layer, canvasW, canvasH);
   if (!destQuad) return;
   const quad = applyFitToQuad(destQuad, fit);
-  const anchors = LAYER_IMAGE_ANCHORS[getLayer(layer)];
+  const anchors = resolveImageAnchors(item, layer);
 
   const screenAngle = Math.atan2(quad[1].y - quad[0].y, quad[1].x - quad[0].x);
   const anchorAngle = Math.atan2(anchors[1].y - anchors[0].y, anchors[1].x - anchors[0].x);
@@ -63,6 +63,6 @@ export function renderGarments(ctx, landmarks, canvasW, canvasH, items, fit = {}
     if (!src) continue;
     const img = loadImage(src);
     const layer = item.category === 'bottom' ? 'bottom' : item.category;
-    drawGarment(ctx, img, landmarks, canvasW, canvasH, layer, fit);
+    drawGarment(ctx, img, item, landmarks, canvasW, canvasH, layer, fit);
   }
 }
