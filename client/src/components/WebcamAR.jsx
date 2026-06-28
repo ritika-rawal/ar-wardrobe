@@ -103,7 +103,9 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const [aspect, setAspect] = useState(4 / 3);
   const [showDebug, setShowDebug] = useState(false);
   const [usingGL, setUsingGL] = useState(true); // optimistic default; corrected once init resolves
-  const [occlusionEnabled, setOcclusionEnabled] = useState(true);
+  // Default OFF: mask-based body/arm occlusion looks more realistic when clean, but the segmentation
+  // mask edge introduces shimmer on some devices — the plain overlay is steadier, so opt-in.
+  const [occlusionEnabled, setOcclusionEnabled] = useState(false);
   const [quality, setQuality] = useState('auto'); // 'auto' | 'high' | 'fast'
   const [modelLoading, setModelLoading] = useState(true);
   const [perf, setPerf] = useState({ fps: 0, poseMs: 0 });
@@ -118,7 +120,7 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   useEffect(() => {
     showDebugRef.current = showDebug;
   }, [showDebug]);
-  const occlusionEnabledRef = useRef(true);
+  const occlusionEnabledRef = useRef(false);
   useEffect(() => {
     occlusionEnabledRef.current = occlusionEnabled;
   }, [occlusionEnabled]);
@@ -588,19 +590,20 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
           ))}
         </div>
         <button
+          onClick={() => setOcclusionEnabled((o) => !o)}
+          title="Clip the garment to your body outline and let arms in front occlude it. More realistic, but can shimmer on some devices."
+          className={`min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded ${
+            occlusionEnabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+          }`}
+        >
+          <User className="h-4 w-4" /> Body occlusion: {occlusionEnabled ? 'on' : 'off'}
+        </button>
+        <button
           onClick={() => setShowDebug((d) => !d)}
           className="min-h-[44px] inline-flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"
         >
           <Bug className="h-4 w-4" /> {showDebug ? 'Hide' : 'Show'} debug markers
         </button>
-        {showDebug && (
-          <button
-            onClick={() => setOcclusionEnabled((o) => !o)}
-            className="min-h-[44px] inline-flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded"
-          >
-            <User className="h-4 w-4" /> Occlusion: {occlusionEnabled ? 'on' : 'off'}
-          </button>
-        )}
       </div>
     </div>
   );

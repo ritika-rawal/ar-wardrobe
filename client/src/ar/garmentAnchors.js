@@ -198,9 +198,9 @@ export function distPts(a, b) {
 // clothes sit a bit wider than the joint centres and hang slightly below the hip line — these
 // multipliers express that. The user's slider value then scales/offsets relative to this baseline.
 const AUTO_FIT = {
-  top:       { scale: 1.16, yOffset: 0.04 },
-  outerwear: { scale: 1.26, yOffset: 0.02 },
-  bottom:    { scale: 1.10, yOffset: 0.05 },
+  top:       { scale: 1.02, yOffset: 0.03 },
+  outerwear: { scale: 1.12, yOffset: 0.02 },
+  bottom:    { scale: 1.00, yOffset: 0.03 },
 };
 
 export function getAutoFit(layer) {

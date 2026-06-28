@@ -22,7 +22,7 @@ const GRID_VERTS = GRID_ROWS * GRID_COLS;
 // How strongly the garment's left/right edges get pulled toward the live body silhouette per row
 // (1 = snap exactly to the mask edge, 0 = pure homography quad / ignore the mask). Kept under 1 so
 // a noisy mask frame can't make the garment edge jump wildly.
-const SILHOUETTE_BLEND = 0.75;
+const SILHOUETTE_BLEND = 0.55;
 const MASK_THRESHOLD = 0.4;
 
 const VERTEX_SRC = `
@@ -73,7 +73,9 @@ void main() {
   vec4 color = texture2D(u_garment, uv);
   vec2 screenUV = gl_FragCoord.xy / u_resolution;
   vec2 maskUV = vec2(screenUV.x, 1.0 - screenUV.y);
-  float personMask = texture2D(u_mask, maskUV).r;
+  // smoothstep cleans up the soft, flickery grey band at the mask boundary into a stable soft edge,
+  // which (with the temporal EMA on the CPU side) kills most of the occlusion shimmer artifacts.
+  float personMask = smoothstep(0.35, 0.65, texture2D(u_mask, maskUV).r);
 
   // Arm-in-front occlusion: carve out fragments inside any active arm capsule so the real arm
   // (live video underneath) shows through instead of the garment. Soft edge to avoid jaggies.
@@ -273,7 +275,7 @@ export function createGLRenderer(canvas) {
   // across frames steadies the edge (and therefore the conformed garment) while still keeping up
   // when the body actually moves. The smoothed buffer doubles as the source for both the GPU
   // occlusion texture and the CPU silhouette-edge search, so the two stay consistent.
-  const MASK_SMOOTH = 0.5;
+  const MASK_SMOOTH = 0.35;
   let smoothedMaskData = null;
   let smoothedMaskW = 0;
   let smoothedMaskH = 0;
