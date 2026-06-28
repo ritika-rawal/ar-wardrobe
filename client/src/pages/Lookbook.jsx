@@ -48,11 +48,28 @@ export default function Lookbook() {
     return occasion.toLowerCase() === filter.toLowerCase();
   });
 
+  const serif = { fontFamily: 'var(--brand-font-serif)', fontStyle: 'italic' };
+  // Varied tile heights give the no-snapshot collage tiles a moodboard rhythm instead of a uniform grid.
+  const COLLAGE_HEIGHTS = [260, 320, 230, 300, 280, 250];
+
   return (
     <>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-        <h1 className="text-3xl font-medium tracking-tight mb-2">Lookbook</h1>
-        <p className="text-sm text-muted-foreground mb-8">Your pinned outfits, all in one place.</p>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        {/* Editorial header */}
+        <div className="mb-8">
+          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">Curated · Mood board</p>
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <h1 className="text-4xl sm:text-5xl leading-none" style={serif}>Lookbook</h1>
+            {!loading && pins.length > 0 && (
+              <span className="text-sm text-muted-foreground">
+                {pins.length} look{pins.length !== 1 ? 's' : ''} pinned
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-3 max-w-md">
+            A living collage of your favourite looks — pin, revisit, and try them on.
+          </p>
+        </div>
 
         {/* Filter pills */}
         <div className="flex gap-2 flex-wrap mb-8">
@@ -60,7 +77,7 @@ export default function Lookbook() {
             <button key={f} onClick={() => setFilter(f)} className="focus:outline-none">
               <Badge
                 variant={filter === f ? 'default' : 'outline'}
-                className="cursor-pointer hover:opacity-80 transition-opacity"
+                className="cursor-pointer hover:opacity-80 transition-opacity rounded-full px-3 py-1"
               >
                 {f}
               </Badge>
@@ -69,70 +86,77 @@ export default function Lookbook() {
         </div>
 
         {loading ? (
-          <div className="columns-2 md:columns-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="w-full mb-4 rounded-[14px]" style={{ height: `${140 + (i % 3) * 60}px` }} />
+          <div className="columns-2 sm:columns-3 lg:columns-4 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <Skeleton key={i} className="w-full mb-3 rounded-2xl" style={{ height: `${200 + (i % 3) * 70}px` }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-20 text-center">
-            <p
-              className="text-2xl mb-3"
-              style={{ fontFamily: 'var(--brand-font-serif)', fontStyle: 'italic', color: 'var(--brand-muted)' }}
-            >
-              Your lookbook is empty
+          <div className="py-24 text-center">
+            <p className="text-3xl mb-3" style={{ ...serif, color: 'var(--brand-muted)' }}>
+              {pins.length === 0 ? 'Your lookbook is empty' : 'Nothing in this filter'}
             </p>
             <p className="text-sm text-muted-foreground mb-6">
-              Pin your favourite outfits to collect them here.
+              Pin your favourite outfits to collect them into a mood board.
             </p>
             <Button asChild variant="secondary">
               <Link to="/outfits">Go to My Outfits <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
           </div>
         ) : (
-          <div className="columns-2 md:columns-3 gap-4">
-            {filtered.map((pin) => {
+          <div className="columns-2 sm:columns-3 lg:columns-4 gap-3">
+            {filtered.map((pin, idx) => {
               const outfit = pin.outfitId;
               const itemCount = outfit?.itemIds?.length || 0;
+              const occasion = outfit?.occasion;
+              const dateLabel = new Date(pin.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
               return (
                 <div
                   key={pin._id}
-                  className="break-inside-avoid mb-4 rounded-[14px] overflow-hidden border cursor-pointer group relative"
-                  style={{ borderColor: 'var(--brand-border)' }}
+                  className="break-inside-avoid mb-3 rounded-2xl overflow-hidden cursor-pointer group relative bg-black shadow-sm hover:shadow-xl transition-shadow"
                   onClick={() => setSheetPin(pin)}
                 >
                   {outfit?.snapshotUrl ? (
                     <img
                       src={outfit.snapshotUrl}
                       alt={outfit.name}
-                      className="w-full object-cover"
+                      className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
                     <div
-                      className="w-full flex flex-wrap items-center justify-center gap-1 p-3 min-h-[120px]"
-                      style={{ background: 'var(--brand-stone)' }}
+                      className="w-full grid grid-cols-2 gap-2 p-4 transition-transform duration-500 group-hover:scale-[1.03]"
+                      style={{ background: 'var(--brand-stone)', height: `${COLLAGE_HEIGHTS[idx % COLLAGE_HEIGHTS.length]}px` }}
                     >
                       {outfit?.itemIds?.slice(0, 4).map((item) => (
-                        <div key={item._id} className="w-12 h-12 rounded overflow-hidden bg-white">
+                        <div key={item._id} className="rounded-lg overflow-hidden bg-white/70 flex items-center justify-center p-1">
                           <img src={item.imageUrl} alt={item.name} className="w-full h-full object-contain" />
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="p-3">
-                    <p className="text-sm font-medium truncate">{outfit?.name || 'Outfit'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {itemCount} item{itemCount !== 1 ? 's' : ''} ·{' '}
-                      {new Date(pin.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+
+                  {/* Caption overlay */}
+                  <div className="absolute inset-x-0 bottom-0 p-3 pt-10 bg-gradient-to-t from-black/75 via-black/30 to-transparent">
+                    <p className="text-white text-sm font-medium truncate drop-shadow">{outfit?.name || 'Outfit'}</p>
+                    <p className="text-white/70 text-xs">
+                      {itemCount} item{itemCount !== 1 ? 's' : ''} · {dateLabel}
                     </p>
                   </div>
-                  {/* Unpin button */}
+
+                  {/* Occasion tag */}
+                  {occasion && (
+                    <span className="absolute top-2 left-2 text-[10px] uppercase tracking-wider bg-white/85 text-slate-800 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                      {occasion}
+                    </span>
+                  )}
+
+                  {/* Unpin */}
                   <button
-                    className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center bg-black/45 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
                     onClick={(e) => { e.stopPropagation(); unpin(pin._id); }}
                     aria-label="Unpin"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
               );
