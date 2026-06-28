@@ -330,6 +330,26 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   Float32→Uint8 byte-pack are now a single pass over the mask (was two) in the steady-state path.
 - [x] Build-verified: `npm run build` passes.
 
+### Phase 12 — AR differentiators (Tier 3, this session)
+- [x] **Per-category auto-fit** (`garmentAnchors.js`): `getAutoFit(layer)` + `combineFit(auto, user)`
+  apply a sensible per-category baseline (tops 1.16×/+0.04y, outerwear 1.26×/+0.02y, bottoms
+  1.10×/+0.05y) *before* the user's fit sliders, so a freshly-selected garment drapes naturally
+  (real clothes sit wider than the joint centres and hang below the hip line) without anyone touching
+  the controls. Both renderers compose it with the slider value. Heuristic constants — user can still
+  adjust around them.
+- [x] **Arm-in-front occlusion** (`garmentAnchors.js#getOcclusionCapsules`, `webglRenderer.js`
+  shader): uses MediaPipe per-landmark `z` (depth) to detect upper-arm/forearm segments in front of
+  the torso, passes them to the fragment shader as up to 4 capsules (segment + radius), which carves
+  them out of the garment alpha (soft-edged) so the real arm shows through when you cross it over your
+  chest. The binary person-mask can't do this (it only separates person from background). Gated by the
+  same `u_occlusion` debug toggle.
+- [x] **Short clip recording** (`WebcamAR.jsx`): "Record clip" composites live video + garment overlay
+  onto an offscreen canvas, captures via `captureStream` + `MediaRecorder` for 4s with a REC countdown
+  overlay, then shares (`navigator.share` with the file) or downloads the `.webm`. Mirroring matches
+  what the user sees; button hidden when `MediaRecorder`/`captureStream` unsupported; recording torn
+  down on unmount. (Forward clip, not a true boomerang — see README limitations.)
+- [x] Build-verified: `npm run build` passes.
+
 ### Next up
 - [ ] **Manual browser test**: verify fashion-brand aesthetic end-to-end — navbar wordmark, warm
   off-white background, Inter font, mobile bottom sheet, Dashboard stats, Lookbook masonry, 5-step

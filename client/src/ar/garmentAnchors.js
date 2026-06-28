@@ -192,6 +192,71 @@ export function distPts(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+// Per-category auto-fit: a sensible default scale + vertical nudge applied *before* the user's fit
+// sliders, so a freshly-selected garment drapes naturally without anyone touching the controls. The
+// homography already lands the garment's shoulder/hip anchors exactly on the body joints, but real
+// clothes sit a bit wider than the joint centres and hang slightly below the hip line — these
+// multipliers express that. The user's slider value then scales/offsets relative to this baseline.
+const AUTO_FIT = {
+  top:       { scale: 1.16, yOffset: 0.04 },
+  outerwear: { scale: 1.26, yOffset: 0.02 },
+  bottom:    { scale: 1.10, yOffset: 0.05 },
+};
+
+export function getAutoFit(layer) {
+  return AUTO_FIT[getLayer(layer)] || AUTO_FIT.top;
+}
+
+// Composes the per-category auto-fit with the user's slider fit (scale multiplies, offset adds).
+export function combineFit(auto, user = {}) {
+  return {
+    scale: auto.scale * (user.scale ?? 1),
+    yOffset: auto.yOffset + (user.yOffset ?? 0),
+  };
+}
+
+// Builds screen-space "occlusion capsules" (line segment + radius, in canvas px) for any arm
+// segment that is in front of the torso, using MediaPipe's per-landmark z (depth; smaller = closer
+// to camera). The renderer punches these out of the garment alpha so a hand/arm crossing the chest
+// occludes the clothing — something the binary person-segmentation mask alone can't do, since it
+// only separates person from background, not arm-in-front-of-torso. Capped at 4 capsules.
+export function getOcclusionCapsules(landmarks, canvasW, canvasH) {
+  const ls = landmarks[LANDMARK.LEFT_SHOULDER];
+  const rs = landmarks[LANDMARK.RIGHT_SHOULDER];
+  if (!lmOk(ls) || !lmOk(rs)) return [];
+  const shoulderW = distPts(toPx(ls, canvasW, canvasH), toPx(rs, canvasW, canvasH));
+  const radius = Math.max(8, shoulderW * 0.13);
+
+  // Torso reference depth = mean z of the visible shoulder/hip landmarks.
+  const zs = [ls.z, rs.z];
+  const lh = landmarks[LANDMARK.LEFT_HIP];
+  const rh = landmarks[LANDMARK.RIGHT_HIP];
+  if (lmOk(lh)) zs.push(lh.z);
+  if (lmOk(rh)) zs.push(rh.z);
+  const torsoZ = zs.reduce((a, b) => a + (b ?? 0), 0) / zs.length;
+  const MARGIN = 0.04; // how much closer than the torso a joint must be to count as "in front"
+
+  const caps = [];
+  const sides = [
+    { sh: ls, el: landmarks[LANDMARK.LEFT_ELBOW], wr: landmarks[LANDMARK.LEFT_WRIST] },
+    { sh: rs, el: landmarks[LANDMARK.RIGHT_ELBOW], wr: landmarks[LANDMARK.RIGHT_WRIST] },
+  ];
+  for (const { sh, el, wr } of sides) {
+    if (lmOk(el) && (el.z ?? 0) < torsoZ - MARGIN) {
+      const a = toPx(sh, canvasW, canvasH);
+      const b = toPx(el, canvasW, canvasH);
+      caps.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, r: radius });
+    }
+    if (lmOk(el) && lmOk(wr) && (wr.z ?? 0) < torsoZ - MARGIN) {
+      const a = toPx(el, canvasW, canvasH);
+      const b = toPx(wr, canvasW, canvasH);
+      caps.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, r: radius * 0.85 });
+    }
+    if (caps.length >= 4) break;
+  }
+  return caps.slice(0, 4);
+}
+
 // Reproduces the old "size slider + vertical nudge" UX on top of the quad-correspondence
 // renderers: inflate the destination quad around its own centroid (scale) and shift it
 // vertically by a fraction of its own height (yOffset). Shared by the WebGL and 2D-fallback

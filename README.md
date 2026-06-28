@@ -12,7 +12,7 @@ services, no API keys required.
 | Module | What it does |
 |--------|-------------|
 | **Digital Closet** | Upload garments (any photo), organize by category / color / season / warmth. Background removal runs in-browser (no server cost, no API key) to produce a clean cutout for the AR overlay. |
-| **Live AR Try-On** | MediaPipe pose tracking drives a WebGL perspective mesh that wraps garments around your body silhouette in real time. Works on desktop and mobile (front camera by default). |
+| **Live AR Try-On** | MediaPipe pose tracking drives a WebGL perspective mesh that wraps garments around your body silhouette in real time. Per-category auto-fit, arm-in-front occlusion (via landmark depth), still snapshots and short shareable clips. Works on desktop and mobile (front camera by default). |
 | **Smart Recommendations** | Open-Meteo weather API (free, no key) + rule-based outfit engine suggests looks matched to current conditions and your saved style preferences. |
 | **My Outfits** | Save AR snapshot + outfit combo to revisit or share. |
 
@@ -172,6 +172,11 @@ client/src/
 
 - AR is keypoint-anchored perspective warp with silhouette occlusion — a big step up from a flat
   sticker, but not physical cloth simulation (no fabric drape, fold physics, or wrinkle mapping).
+- Arm-in-front occlusion is a depth *approximation*: forearm/upper-arm capsules are carved out of the
+  garment when MediaPipe's landmark `z` puts them in front of the torso. It handles crossed arms, not
+  per-pixel depth, so fingers/hands aren't precisely cut out.
+- "Record clip" produces a short forward `.webm` (canvas `captureStream` + `MediaRecorder`), not a
+  true forward-and-reverse boomerang; unsupported browsers simply hide the button.
 - Performance on low-end phones hasn't been measured on real hardware. The `full` pose model + mesh
   renderer is the heaviest combination; there is an automatic WebGL→2D fallback, an adaptive
   `lite`/`full` model tier (auto-selected, user-overridable), and an on-screen FPS HUD to gauge it.

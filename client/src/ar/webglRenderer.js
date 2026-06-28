@@ -3,9 +3,15 @@ import {
   resolveImageAnchors,
   getStableDestQuad,
   applyFitToQuad,
+  getAutoFit,
+  combineFit,
+  getOcclusionCapsules,
   getCollarCeilingY,
   getArmPoints,
 } from './garmentAnchors.js';
+
+// Max arm-occlusion capsules the fragment shader handles per frame (2 sides × upper-arm + forearm).
+const MAX_ARM_CAPSULES = 4;
 
 // Mesh resolution: dense enough that the silhouette-conform step (below) reads as a smooth body
 // contour rather than a stepped outline, sparse enough to stay trivial on a GPU (~270 triangles).
@@ -48,6 +54,17 @@ uniform sampler2D u_garment;
 uniform sampler2D u_mask;
 uniform vec2 u_resolution;
 uniform float u_occlusion;
+uniform int u_armCount;
+uniform vec4 u_arms[${MAX_ARM_CAPSULES}];   // xy = segment start, zw = segment end (canvas px, y-down)
+uniform float u_armRadius[${MAX_ARM_CAPSULES}];
+
+// Shortest distance from point p to the line segment a-b.
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-3), 0.0, 1.0);
+  return distance(p, a + ab * t);
+}
+
 void main() {
   vec2 uv = v_texCoordW.xy / v_texCoordW.z;
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
@@ -57,7 +74,18 @@ void main() {
   vec2 screenUV = gl_FragCoord.xy / u_resolution;
   vec2 maskUV = vec2(screenUV.x, 1.0 - screenUV.y);
   float personMask = texture2D(u_mask, maskUV).r;
-  float occlusion = mix(1.0, personMask, u_occlusion);
+
+  // Arm-in-front occlusion: carve out fragments inside any active arm capsule so the real arm
+  // (live video underneath) shows through instead of the garment. Soft edge to avoid jaggies.
+  vec2 fragPx = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y);
+  float armOcc = 1.0;
+  for (int i = 0; i < ${MAX_ARM_CAPSULES}; i++) {
+    if (i >= u_armCount) break;
+    float d = segDist(fragPx, u_arms[i].xy, u_arms[i].zw);
+    armOcc = min(armOcc, smoothstep(u_armRadius[i] - 2.0, u_armRadius[i], d));
+  }
+
+  float occlusion = mix(1.0, personMask * armOcc, u_occlusion);
   gl_FragColor = vec4(color.rgb * v_shade, color.a * occlusion);
 }
 `;
@@ -203,7 +231,14 @@ export function createGLRenderer(canvas) {
     garment: gl.getUniformLocation(program, 'u_garment'),
     mask: gl.getUniformLocation(program, 'u_mask'),
     occlusion: gl.getUniformLocation(program, 'u_occlusion'),
+    armCount: gl.getUniformLocation(program, 'u_armCount'),
+    arms: gl.getUniformLocation(program, 'u_arms[0]'),
+    armRadius: gl.getUniformLocation(program, 'u_armRadius[0]'),
   };
+
+  // Scratch buffers for arm-occlusion uniforms, reused each frame.
+  const armData = new Float32Array(MAX_ARM_CAPSULES * 4);
+  const armRadii = new Float32Array(MAX_ARM_CAPSULES);
 
   const positionBuffer = gl.createBuffer();
   const texCoordWBuffer = gl.createBuffer();
@@ -399,7 +434,8 @@ export function createGLRenderer(canvas) {
 
     const destQuad = getStableDestQuad(landmarks, layer, canvasW, canvasH);
     if (!destQuad) return;
-    const fittedQuad = applyFitToQuad(destQuad, fit);
+    // Auto-fit (per-category baseline) composed with the user's slider fit.
+    const fittedQuad = applyFitToQuad(destQuad, combineFit(getAutoFit(layer), fit));
     const H = quadToQuad(anchors, fittedQuad);
 
     // Collar ceiling and arm points only matter for tops/outerwear, not bottoms.
@@ -451,6 +487,22 @@ export function createGLRenderer(canvas) {
       gl.useProgram(program);
       gl.uniform2f(locations.resolution, canvas.width, canvas.height);
       gl.uniform1f(locations.occlusion, occlusionEnabled ? 1.0 : 0.0);
+
+      // Arm-in-front occlusion capsules (shared by every garment this frame).
+      const caps = getOcclusionCapsules(landmarks, canvas.width, canvas.height);
+      gl.uniform1i(locations.armCount, caps.length);
+      if (caps.length) {
+        for (let i = 0; i < caps.length; i++) {
+          const c = caps[i];
+          armData[i * 4] = c.ax;
+          armData[i * 4 + 1] = c.ay;
+          armData[i * 4 + 2] = c.bx;
+          armData[i * 4 + 3] = c.by;
+          armRadii[i] = c.r;
+        }
+        gl.uniform4fv(locations.arms, armData);
+        gl.uniform1fv(locations.armRadius, armRadii);
+      }
 
       const sorted = [...items].sort(
         (a, b) => LAYER_ORDER.indexOf(a.category) - LAYER_ORDER.indexOf(b.category)

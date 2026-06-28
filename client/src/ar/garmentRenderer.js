@@ -1,4 +1,10 @@
-import { resolveImageAnchors, getStableDestQuad, applyFitToQuad } from './garmentAnchors.js';
+import {
+  resolveImageAnchors,
+  getStableDestQuad,
+  applyFitToQuad,
+  getAutoFit,
+  combineFit,
+} from './garmentAnchors.js';
 
 // Cache loaded <img> elements by src so we don't reload every frame.
 const imageCache = new Map();
@@ -25,7 +31,7 @@ function drawGarment(ctx, img, item, landmarks, canvasW, canvasH, layer, fit = {
 
   const destQuad = getStableDestQuad(landmarks, layer, canvasW, canvasH);
   if (!destQuad) return;
-  const quad = applyFitToQuad(destQuad, fit);
+  const quad = applyFitToQuad(destQuad, combineFit(getAutoFit(layer), fit));
   const anchors = resolveImageAnchors(item, layer);
 
   const screenAngle = Math.atan2(quad[1].y - quad[0].y, quad[1].x - quad[0].x);

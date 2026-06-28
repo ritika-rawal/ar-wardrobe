@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bug, Camera, Gauge, RefreshCw, User } from 'lucide-react';
+import { Bug, Camera, Gauge, RefreshCw, User, Video } from 'lucide-react';
 import { getPoseLandmarker, detectPose, LANDMARK, pickDefaultTier } from '../ar/poseTracker.js';
 import { LandmarkOneEuro } from '../ar/oneEuroFilter.js';
 import { createGLRenderer } from '../ar/webglRenderer.js';
@@ -87,6 +87,11 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const frameCountRef = useRef(0);
   const fpsWindowStartRef = useRef(0);
   const poseMsRef = useRef(0);
+  // Clip recording
+  const mediaRecorderRef = useRef(null);
+  const recordChunksRef = useRef([]);
+  const recordRafRef = useRef(null);
+  const recordTimerRef = useRef(null);
 
   const [status, setStatus] = useState('Loading AR model...');
   const [error, setError] = useState('');
@@ -102,6 +107,8 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
   const [quality, setQuality] = useState('auto'); // 'auto' | 'high' | 'fast'
   const [modelLoading, setModelLoading] = useState(true);
   const [perf, setPerf] = useState({ fps: 0, poseMs: 0 });
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
   // Resolve the user-facing quality choice to a concrete model tier. 'auto' picks per-device.
   const tier = useMemo(
     () => (quality === 'auto' ? pickDefaultTier() : quality === 'fast' ? 'lite' : 'full'),
@@ -344,6 +351,126 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
     onSnapshot?.(dataUrl);
   }
 
+  // Records a short composite clip (live video + garment overlay) and shares or downloads it. Uses
+  // MediaRecorder over a canvas captureStream — the canvas is redrawn each frame so the overlay is
+  // baked in, with the same mirroring the user sees.
+  const RECORD_SECONDS = 4;
+  const canRecord =
+    typeof MediaRecorder !== 'undefined' &&
+    typeof HTMLCanvasElement !== 'undefined' &&
+    typeof HTMLCanvasElement.prototype.captureStream === 'function';
+
+  function recorderMime() {
+    const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported?.(t)) return t;
+    }
+    return '';
+  }
+
+  function startRecording() {
+    if (recording || !canRecord) return;
+    const video = videoRef.current;
+    const overlay = glRendererRef.current ? glCanvasRef.current : fallback2DCanvasRef.current;
+    if (!video || video.readyState < 2) return;
+
+    const w = Math.min(video.videoWidth, MAX_CANVAS_WIDTH);
+    const h = Math.round((w / video.videoWidth) * video.videoHeight);
+    const composite = document.createElement('canvas');
+    composite.width = w;
+    composite.height = h;
+    const cctx = composite.getContext('2d');
+    const mirror = facingMode === 'user';
+
+    let stream;
+    try {
+      stream = composite.captureStream(30);
+      const mime = recorderMime();
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recordChunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size) recordChunksRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || 'video/webm' });
+        finalizeClip(blob);
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+    } catch (err) {
+      console.error('[ar] clip recording failed to start:', err);
+      return;
+    }
+
+    function drawFrame() {
+      cctx.save();
+      if (mirror) {
+        cctx.translate(w, 0);
+        cctx.scale(-1, 1);
+      }
+      cctx.drawImage(video, 0, 0, w, h);
+      cctx.drawImage(overlay, 0, 0, w, h);
+      cctx.restore();
+      recordRafRef.current = requestAnimationFrame(drawFrame);
+    }
+    drawFrame();
+
+    setRecording(true);
+    setRecordSecs(RECORD_SECONDS);
+    recordTimerRef.current = setInterval(() => {
+      setRecordSecs((s) => {
+        if (s <= 1) {
+          stopRecording();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  }
+
+  function stopRecording() {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (recordRafRef.current) {
+      cancelAnimationFrame(recordRafRef.current);
+      recordRafRef.current = null;
+    }
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== 'inactive') mr.stop();
+    setRecording(false);
+  }
+
+  async function finalizeClip(blob) {
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([blob], `try-on.${ext}`, { type: blob.type });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'My try-on — Virtual Wardrobe' });
+        return;
+      } catch {
+        // user cancelled share — fall through to download
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  // Tear down any in-flight recording on unmount.
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      if (recordRafRef.current) cancelAnimationFrame(recordRafRef.current);
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== 'inactive') mr.stop();
+    };
+  }, []);
+
   const mirrored = facingMode === 'user';
   const switchingQuality = modelLoading && status === 'Tracking...';
   const loading = !error && (switchingQuality || (status && status !== 'Tracking...'));
@@ -406,6 +533,11 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
             <Gauge className="h-3 w-3" /> {perf.fps} fps
           </span>
         )}
+        {recording && (
+          <span className="absolute top-2 right-2 inline-flex items-center gap-1.5 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" /> REC {recordSecs}s
+          </span>
+        )}
         {noPose && !error && status === 'Tracking...' && (
           <div className="absolute inset-x-0 bottom-3 text-center">
             <span className="bg-slate-900/80 text-white text-sm px-3 py-1 rounded-full">
@@ -421,6 +553,16 @@ export default function WebcamAR({ selectedItems, fit, onSnapshot }) {
         >
           <Camera className="h-4 w-4" /> Take snapshot
         </button>
+        {canRecord && (
+          <button
+            onClick={recording ? stopRecording : startRecording}
+            className={`min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded text-white ${
+              recording ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            <Video className="h-4 w-4" /> {recording ? `Stop (${recordSecs}s)` : 'Record clip'}
+          </button>
+        )}
         <button
           onClick={handleFlipCamera}
           disabled={switchingCamera}
