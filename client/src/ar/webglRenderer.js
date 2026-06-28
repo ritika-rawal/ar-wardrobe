@@ -116,8 +116,8 @@ void main() {
   // Scene relight: nudge the garment toward the room's colour cast and brightness so it doesn't look
   // pasted on. u_sceneLight neutral grey -> cast ~ (1,1,1) and exposure ~ 1, i.e. no change.
   float sceneLuma = max(luma(u_sceneLight), 0.04);
-  vec3 cast = u_sceneLight / sceneLuma;
-  rgb *= mix(vec3(1.0), cast, CAST_STRENGTH);
+  vec3 castTint = u_sceneLight / sceneLuma;
+  rgb *= mix(vec3(1.0), castTint, CAST_STRENGTH);
   rgb *= mix(1.0, clamp(sceneLuma / REF_LUMA, 0.6, 1.4), EXPOSURE_STRENGTH);
 
   // Cylindrical body shading (baked per-column).
