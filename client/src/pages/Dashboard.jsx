@@ -331,7 +331,8 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-2">
               <CloudSun className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {rec.weather} · {rec.location}
+                {rec.weather && `${Math.round(rec.weather.tempC)}°C · ${rec.weather.condition} · `}
+                {rec.location}
               </span>
             </div>
             <p className="text-sm font-medium mb-1">
