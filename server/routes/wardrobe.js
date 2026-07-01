@@ -2,14 +2,11 @@ import express from 'express';
 import ClothingItem, { CLOTHING_CATEGORIES, CLOTHING_SEASONS } from '../models/ClothingItem.js';
 import { requireAuth } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
+import { persistUpload } from './uploads.js';
 import { autoTagItem } from '../services/autoTagService.js';
 
 const router = express.Router();
 router.use(requireAuth);
-
-function toPublicUrl(req, filename) {
-  return `${req.protocol}://${req.get('host')}/uploads/${filename}`;
-}
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -60,7 +57,7 @@ router.post('/', upload.single('image'), async (req, res) => {
       color: color || '',
       seasons: seasons || [],
       warmth: warmth ? Number(warmth) : 3,
-      imageUrl: toPublicUrl(req, req.file.filename),
+      imageUrl: await persistUpload(req.userId, req.file),
     });
 
     res.status(201).json({ item });
@@ -74,7 +71,7 @@ router.post('/:id/try-on-asset', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'image file is required' });
 
-    const update = { tryOnAssetUrl: toPublicUrl(req, req.file.filename) };
+    const update = { tryOnAssetUrl: await persistUpload(req.userId, req.file) };
     // imageAnchors arrives as a JSON string in the multipart body (auto-detected on the client).
     if (req.body.imageAnchors) {
       try {
