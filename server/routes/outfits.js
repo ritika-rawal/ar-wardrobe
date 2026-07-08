@@ -2,13 +2,10 @@ import express from 'express';
 import Outfit from '../models/Outfit.js';
 import { requireAuth } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
+import { persistUpload } from './uploads.js';
 
 const router = express.Router();
 router.use(requireAuth);
-
-function toPublicUrl(req, filename) {
-  return `${req.protocol}://${req.get('host')}/uploads/${filename}`;
-}
 
 router.get('/', async (req, res) => {
   const outfits = await Outfit.find({ userId: req.userId })
@@ -32,7 +29,7 @@ router.post('/', upload.single('snapshot'), async (req, res) => {
       userId: req.userId,
       name,
       itemIds,
-      snapshotUrl: req.file ? toPublicUrl(req, req.file.filename) : null,
+      snapshotUrl: req.file ? await persistUpload(req.userId, req.file) : null,
     });
     const populated = await outfit.populate('itemIds');
 

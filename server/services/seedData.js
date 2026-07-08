@@ -17,7 +17,7 @@ const DEMO_ITEMS = [
 // Seeds a demo account with a ready-to-go, AR-ready wardrobe on first boot.
 // Only runs when the database has no users at all, so it never touches real user data
 // and never re-seeds on every restart.
-export async function seedIfEmpty(baseUrl) {
+export async function seedIfEmpty() {
   const userCount = await User.countDocuments();
   if (userCount > 0) return;
 
@@ -31,7 +31,7 @@ export async function seedIfEmpty(baseUrl) {
 
   await ClothingItem.insertMany(
     DEMO_ITEMS.map((item) => {
-      const url = `${baseUrl}/assets/${item.asset}`;
+      const url = `/assets/${item.asset}`;
       return {
         userId: demoUser._id,
         name: item.name,

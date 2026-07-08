@@ -5,6 +5,11 @@ using webcam AR**, and receive weather-aware outfit recommendations. Built as a 
 demonstrating real-time computer vision in a production-quality web app — no native app, no paid
 services, no API keys required.
 
+**Live demo:** https://virtual-wardrobe-bqyn.onrender.com — log in with `demo@demo.com` / `demo1234`.
+Deployed as a single free service (API + frontend from one origin) on Render, backed by MongoDB
+Atlas. On the live HTTPS site the webcam AR works on phones directly — no tunnel needed. First load
+after idle may take ~50 s (free tier cold start). See [`DEPLOY.md`](DEPLOY.md) for the full setup.
+
 ---
 
 ## Features
@@ -61,8 +66,9 @@ and uses the same anchor correspondence points so the visual output is consisten
 | AR | MediaPipe `tasks-vision` (WASM + GPU delegate) | Free, runs entirely in browser |
 | Renderer | WebGL2 + 2D Canvas fallback | Perspective-correct UV, no three.js overhead |
 | Background removal | `@imgly/background-removal` (browser WASM) | Zero server cost, no API key |
-| Backend | Node + Express | Simple JSON API, multipart upload via multer |
-| Database | MongoDB / `mongodb-memory-server` | Auto in-memory DB on first boot — zero install |
+| Backend | Node + Express | Simple JSON API, multipart upload via multer; serves the built frontend in production (single-origin) |
+| Database | MongoDB Atlas (prod) / `mongodb-memory-server` (dev) | Zero-install in-memory DB for local dev; free Atlas cluster in the cloud |
+| Image storage | Binary in MongoDB (`UploadedImage`) | Uploads persist across restarts on hosts with ephemeral disks (no object store / no API key) |
 | Weather | Open-Meteo REST API | Completely free, no key |
 
 ---
@@ -88,13 +94,21 @@ Open **http://localhost:5173** — a demo account is auto-seeded on first boot:
 | Email | `demo@demo.com` |
 | Password | `demo1234` |
 
-The demo wardrobe has 8 pre-cut garments (tops, outerwear, bottoms, shoes) ready for AR try-on
+The demo wardrobe has 5 pre-cut garments (three tops, two pairs of jeans) ready for AR try-on
 with no extra setup.
 
 ### Persistent database (optional)
 
 Set `MONGO_URI` in `server/.env` (copy `server/.env.example`) to connect to a real MongoDB
 instance instead of the in-memory default. The in-memory DB resets on every server restart.
+
+### Deploying to the cloud (free)
+
+The app ships as a **single service**: in production the Express server serves both the JSON API
+and the built React app from one origin (no CORS, no second deploy). Uploaded images are stored in
+MongoDB rather than on disk, so they survive restarts on free hosts with ephemeral filesystems.
+A one-click Render blueprint (`render.yaml`) plus a step-by-step guide live in
+[`DEPLOY.md`](DEPLOY.md); the only secret you provide is a MongoDB Atlas `MONGO_URI`.
 
 ### Mobile testing
 
@@ -111,10 +125,11 @@ ngrok http 5173   # then open the https:// URL on your phone
 
 ```
 server/
-  index.js              Express entry — CORS, static /uploads + /assets, route mount
-  db.js                 MongoDB connect (real or in-memory auto-fallback)
-  models/               Mongoose schemas — User, ClothingItem, Outfit
-  routes/               auth, wardrobe, outfits, recommend
+  index.js              Express entry — route mount, DB-backed /uploads + static /assets,
+                        serves client/dist (SPA) in production
+  db.js                 MongoDB connect (real/Atlas or in-memory auto-fallback)
+  models/               Mongoose schemas — User, ClothingItem, Outfit, UploadedImage
+  routes/               auth, wardrobe, outfits, recommend, lookbook, uploads (DB image serve)
   services/
     seedData.js         Auto-seeds demo account on first boot
     recommendService.js Rule-based outfit engine (weather × warmth × user prefs)

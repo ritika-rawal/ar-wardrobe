@@ -2,7 +2,7 @@
 
 Living checklist. Update after each meaningful change. Plan reference: `~/.claude/plans/developing-an-ar-powered-virtual-purring-crane.md`.
 
-## Status: Phase 9 complete — fashion-brand redesign (Areas 0–6)
+## Status: Phase 15 complete — deployed live (single-service cloud deploy, Mongo-backed uploads)
 
 ### Done
 - [x] Project scaffold: `server/` (Express) + `client/` (React + Vite + Tailwind)
@@ -390,6 +390,29 @@ Living checklist. Update after each meaningful change. Plan reference: `~/.claud
   mirror-aware for the front camera; stencil cached per-detection so the 60fps draw loop doesn't
   rebuild it.
 
+### Phase 15 — cloud deployment (this session)
+Goal: run the whole app in the cloud for free, with no ngrok tunnel and without losing uploaded
+images on restart.
+- **Persistent uploads**: switched multer from disk (`diskStorage`) to `memoryStorage` and now store
+  each image as a binary document in MongoDB (`server/models/UploadedImage.js`). New route
+  `server/routes/uploads.js` exposes `persistUpload()` (save buffer → relative `/uploads/<id>` URL)
+  and `GET /uploads/:id` (streams the image back with content-type + long cache). This removes the
+  dependency on a persistent local disk, which free hosts don't provide. Updated `wardrobe.js` and
+  `outfits.js` to persist through it.
+- **Single-service architecture**: in production the Express server also serves the built React app
+  (`client/dist`) with an SPA fallback (`server/index.js`), so API + frontend share one origin — no
+  CORS, no second deploy, no tunnel. Paths are resolved from `__dirname` so it runs from any cwd.
+- **Fixes surfaced by the prod build**: seed image URLs were hardcoded to `http://localhost:5000/...`
+  → now relative `/assets/...` (`seedData.js`); Vite's build output collided with the server's
+  `/assets` route → moved build assets to `/static` (`client/vite.config.js`), which also now proxies
+  `/assets` in dev.
+- **Deploy config**: `render.yaml` (one free Render Web Service), root `package.json` build/start
+  helpers, and `DEPLOY.md` (Atlas + Render walkthrough).
+- **Verified live** at https://virtual-wardrobe-bqyn.onrender.com: health, SPA deep links, seed
+  assets, demo login, seeded wardrobe, `/static` bundle, and an upload round-trip (stored in Atlas,
+  served back from Mongo). Diagnosed and fixed the one deploy failure — Atlas IP access list needed
+  `0.0.0.0/0` for Render's dynamic egress IPs.
+
 ### Research notes — further AR try-on / capture improvements (backlog)
 - **True body segmentation for try-on occlusion**: replace landmark-z arm capsules with a real
   person/clothes parser (e.g. selfie-segmentation or a body-parsing model) for per-pixel occlusion.
@@ -422,3 +445,9 @@ Open http://localhost:5173 and either register a new account, or log in with the
 account: **demo@demo.com / demo1234** (has a full AR-ready wardrobe already — no upload needed).
 
 To use a real/persistent MongoDB instead of the in-memory default, set `MONGO_URI` in `server/.env` (see `server/.env.example`).
+
+## Deployed (cloud)
+Live at **https://virtual-wardrobe-bqyn.onrender.com** (demo@demo.com / demo1234). One free Render
+Web Service serves API + frontend from a single origin, backed by MongoDB Atlas; uploads persist as
+binary docs in Mongo. Full setup in `DEPLOY.md`. To reproduce: build `npm run build` (root), start
+`node server/index.js`, with env `MONGO_URI` + `JWT_SECRET`.
