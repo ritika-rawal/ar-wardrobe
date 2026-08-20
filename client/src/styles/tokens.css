@@ -6,6 +6,21 @@
   --brand-border: rgba(0, 0, 0, 0.08);
   --brand-accent: #6b5ce7;
 
+  --brand-plum: #5c2f52;
+  --brand-plum-dark: #4a2544;
+  --brand-plum-light: #7a3f66;
+  --brand-cream: #f8ecdf;
+  --brand-tan: #e9d3bd;
+  --brand-ink: #2b1f27;
+  --brand-muted-warm: #8a7873;
+
+  --brand-emerald: #8b5e3c;
+  --brand-emerald-dark: #6b4530;
+  --brand-gold: #b8863a;
+  --brand-parchment: #faf6ee;
+  --brand-forest-ink: #3d2b1f;
+  --brand-muted-sage: #8a7362;
+
   --brand-radius-sm: 8px;
   --brand-radius-md: 14px;
   --brand-radius-lg: 20px;

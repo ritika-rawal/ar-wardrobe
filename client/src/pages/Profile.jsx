@@ -45,6 +45,10 @@ export default function Profile() {
   }
 
   return (
+    <div
+      className="min-h-[calc(100vh-56px)]"
+      style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+    >
     <div className="max-w-lg mx-auto px-4 sm:px-6 py-12">
       <h1 className="text-2xl font-medium mb-1">Profile</h1>
       <p className="text-sm text-muted-foreground mb-8">
@@ -98,6 +102,7 @@ export default function Profile() {
           </form>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }

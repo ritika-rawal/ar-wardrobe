@@ -54,6 +54,10 @@ export default function Lookbook() {
 
   return (
     <>
+      <div
+        className="min-h-[calc(100vh-56px)]"
+        style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+      >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
         {/* Editorial header */}
         <div className="mb-8">
@@ -163,6 +167,7 @@ export default function Lookbook() {
             })}
           </div>
         )}
+      </div>
       </div>
 
       {/* Bottom sheet detail */}

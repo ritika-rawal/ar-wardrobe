@@ -49,6 +49,10 @@ export default function Outfits() {
   }
 
   return (
+    <div
+      className="min-h-[calc(100vh-56px)]"
+      style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+    >
     <div className="max-w-5xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">My Outfits</h1>
 
@@ -115,6 +119,7 @@ export default function Outfits() {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }

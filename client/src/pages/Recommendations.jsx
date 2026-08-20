@@ -188,6 +188,10 @@ export default function Recommendations() {
   }
 
   return (
+    <div
+      className="min-h-[calc(100vh-56px)]"
+      style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+    >
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">Smart Recommendations</h1>
 
@@ -326,6 +330,7 @@ export default function Recommendations() {
           )}
         </div>
       )}
+    </div>
     </div>
   );
 }

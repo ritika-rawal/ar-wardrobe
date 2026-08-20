@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CloudSun, ArrowRight } from 'lucide-react';
+import { CloudSun, ArrowRight, Shirt, CalendarPlus, Layers, Sparkles } from 'lucide-react';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,16 @@ const COLOR_HEX = {
 
 const CATEGORIES = ['top', 'bottom', 'outerwear', 'shoes', 'accessory'];
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// Soft-brown dashboard palette
+const INK = '#3d2b1f';
+const MUTED = '#8a7362';
+const ACCENT = '#8b5e3c';
+const ACCENT_DARK = '#6b4530';
+const CARD_BG = '#fffaf3';
+const CARD_BORDER = 'rgba(93, 64, 40, 0.12)';
+const SOFT_TINT = 'rgba(139, 94, 60, 0.10)';
+const CARD_SHADOW = '0 2px 14px rgba(93, 64, 40, 0.06)';
 
 function greeting() {
   const h = new Date().getHours();
@@ -120,246 +130,254 @@ export default function Dashboard() {
   const occasions = user?.preferences?.occasions || [];
 
   const STAT_LABELS = [
-    { label: 'Items', value: totalItems },
-    { label: 'Added this week', value: addedThisWeek },
-    { label: 'Outfits saved', value: outfitCount },
-    { label: 'AR-ready', value: arReady },
+    { label: 'Items', value: totalItems, Icon: Shirt },
+    { label: 'Added this week', value: addedThisWeek, Icon: CalendarPlus },
+    { label: 'Outfits saved', value: outfitCount, Icon: Layers },
+    { label: 'AR-ready', value: arReady, Icon: Sparkles },
   ];
 
+  const card = { background: CARD_BG, border: `1px solid ${CARD_BORDER}`, boxShadow: CARD_SHADOW };
+
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-12">
-      {/* Greeting */}
-      <div>
-        <h1 className="text-3xl font-medium tracking-tight">
-          {greeting()}, {firstName}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
-      </div>
-
-      {/* Stat strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {STAT_LABELS.map(({ label, value }) => (
+    <div
+      className="min-h-[calc(100vh-56px)]"
+      style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+    >
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+        {/* Greeting banner */}
+        <div className="rounded-2xl px-6 py-6 sm:px-8 sm:py-7 flex items-center justify-between gap-4" style={card}>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: INK }}>
+              {greeting()}, {firstName}
+            </h1>
+            <p className="text-sm mt-1" style={{ color: MUTED }}>
+              {today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+          </div>
           <div
-            key={label}
-            className="rounded-[14px] border px-4 py-4"
-            style={{ borderColor: 'var(--brand-border)' }}
+            className="hidden sm:flex w-12 h-12 rounded-full items-center justify-center shrink-0"
+            style={{ background: SOFT_TINT }}
           >
-            {loading ? (
-              <Skeleton className="h-7 w-8 mb-1" />
-            ) : (
-              <p className="text-2xl font-medium">{value}</p>
-            )}
-            <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            <Sparkles className="h-5 w-5" style={{ color: ACCENT }} />
           </div>
-        ))}
-      </div>
+        </div>
 
-      {/* Wardrobe breakdown */}
-      <div>
-        <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground mb-5">
-          Wardrobe
-        </h2>
-        <div className="space-y-3">
-          {catCounts.map(({ label, count }) => (
-            <div key={label} className="flex items-center gap-3">
-              <span className="text-sm w-20 shrink-0">{label}</span>
-              <div className="flex-1 h-1.5 rounded-full" style={{ background: 'var(--brand-stone)' }}>
-                <div
-                  className="h-1.5 rounded-full transition-all"
-                  style={{
-                    width: `${(count / maxCat) * 100}%`,
-                    background: 'var(--brand-black)',
-                  }}
-                />
+        {/* Stat strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {STAT_LABELS.map(({ label, value, Icon }) => (
+            <div key={label} className="rounded-2xl p-5" style={card}>
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center mb-3"
+                style={{ background: SOFT_TINT }}
+              >
+                <Icon className="h-4 w-4" style={{ color: ACCENT }} />
               </div>
-              <span className="text-sm text-muted-foreground w-4 text-right shrink-0">{count}</span>
+              {loading ? (
+                <Skeleton className="h-7 w-10 mb-1" />
+              ) : (
+                <p className="text-2xl font-semibold" style={{ color: INK }}>{value}</p>
+              )}
+              <p className="text-xs mt-0.5" style={{ color: MUTED }}>{label}</p>
             </div>
           ))}
         </div>
 
-        {topColors.length > 0 && (
-          <div className="flex items-center gap-4 mt-6">
-            {topColors.map(([color]) => (
-              <div key={color} className="flex flex-col items-center gap-1.5">
-                <div
-                  className="w-6 h-6 rounded-full border"
-                  style={{
-                    background: COLOR_HEX[color] || '#ccc',
-                    borderColor: 'var(--brand-border)',
-                  }}
-                />
-                <span className="text-[10px] text-muted-foreground capitalize">{color}</span>
+        {/* Main grid: content (left) + sidebar (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Left column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Wardrobe breakdown */}
+            <div className="rounded-2xl p-6 sm:p-7" style={card}>
+              <h2 className="text-xs font-semibold uppercase tracking-widest mb-5" style={{ color: MUTED }}>
+                Wardrobe
+              </h2>
+              <div className="grid sm:grid-cols-2 sm:gap-x-10 gap-y-3">
+                {catCounts.map(({ label, count }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <span className="text-sm w-20 shrink-0" style={{ color: INK }}>{label}</span>
+                    <div className="flex-1 h-1.5 rounded-full" style={{ background: SOFT_TINT }}>
+                      <div
+                        className="h-1.5 rounded-full transition-all"
+                        style={{ width: `${(count / maxCat) * 100}%`, background: ACCENT }}
+                      />
+                    </div>
+                    <span className="text-sm w-4 text-right shrink-0" style={{ color: MUTED }}>{count}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Weekly activity */}
-      <div>
-        <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground mb-5">
-          This week
-        </h2>
-        <div className="flex gap-3">
-          {weekDays.map(({ label, isToday, hasOutfit }) => (
-            <div key={label} className="flex flex-col items-center gap-2">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center"
-                style={{
-                  background: isToday
-                    ? 'var(--brand-black)'
-                    : hasOutfit
-                    ? 'var(--brand-accent)'
-                    : 'var(--brand-stone)',
-                }}
-              />
-              <span
-                className="text-[10px] font-medium"
-                style={{ color: isToday ? 'var(--brand-black)' : 'var(--brand-muted)' }}
-              >
-                {label}
-              </span>
+              {topColors.length > 0 && (
+                <div className="flex items-center gap-4 mt-6 pt-6" style={{ borderTop: `1px solid ${CARD_BORDER}` }}>
+                  {topColors.map(([color]) => (
+                    <div key={color} className="flex flex-col items-center gap-1.5">
+                      <div
+                        className="w-6 h-6 rounded-full border"
+                        style={{ background: COLOR_HEX[color] || '#ccc', borderColor: CARD_BORDER }}
+                      />
+                      <span className="text-[10px] capitalize" style={{ color: MUTED }}>{color}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Recent outfits */}
-      {outfits.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-              Recent outfits
-            </h2>
-            <Link
-              to="/outfits"
-              className="text-xs flex items-center gap-1"
-              style={{ color: 'var(--brand-muted)' }}
-            >
-              View all <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {recentOutfits.map((o) => (
-              <div
-                key={o._id}
-                className="flex items-center gap-3 px-4 py-3 rounded-[14px] border"
-                style={{ borderColor: 'var(--brand-border)' }}
-              >
-                {o.snapshotUrl && (
-                  <img src={o.snapshotUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{o.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(o.createdAt).toLocaleDateString('en-GB', {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                    })}
-                  </p>
+            {/* Recent outfits */}
+            {outfits.length > 0 && (
+              <div className="rounded-2xl p-6 sm:p-7" style={card}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: MUTED }}>
+                    Recent outfits
+                  </h2>
+                  <Link to="/outfits" className="text-xs flex items-center gap-1" style={{ color: ACCENT }}>
+                    View all <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {recentOutfits.map((o) => (
+                    <div
+                      key={o._id}
+                      className="flex items-center gap-3 px-3 py-3 rounded-xl"
+                      style={{ background: SOFT_TINT }}
+                    >
+                      {o.snapshotUrl && (
+                        <img src={o.snapshotUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: INK }}>{o.name}</p>
+                        <p className="text-xs" style={{ color: MUTED }}>
+                          {new Date(o.createdAt).toLocaleDateString('en-GB', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Style profile */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-            Style profile
-          </h2>
-          <Link
-            to="/profile"
-            className="text-xs"
-            style={{ color: 'var(--brand-muted)' }}
-          >
-            Edit
-          </Link>
-        </div>
-        {styleVibes.length === 0 && favColors.length === 0 && occasions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No preferences set yet.{' '}
-            <Link to="/profile" className="underline" style={{ color: 'var(--brand-black)' }}>
-              Add some
-            </Link>{' '}
-            to get better recommendations.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {styleVibes.map((v) => (
-              <Badge key={v} variant="secondary" className="capitalize">{v}</Badge>
-            ))}
-            {favColors.map((c) => (
-              <Badge key={c} variant="outline" className="capitalize">{c}</Badge>
-            ))}
-            {occasions.map((o) => (
-              <Badge key={o} variant="secondary" className="capitalize">{o}</Badge>
-            ))}
-          </div>
-        )}
-        {neverWorn.length > 0 && (
-          <p className="text-xs text-muted-foreground mt-4">
-            Never worn:{' '}
-            {neverWorn.map((i) => i.name).join(', ')}
-            {wardrobe.filter((i) => !allWornIds.has(i._id)).length > 2 &&
-              ` +${wardrobe.filter((i) => !allWornIds.has(i._id)).length - 2} more`}
-          </p>
-        )}
-      </div>
-
-      {/* Recommendation teaser */}
-      <div>
-        <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground mb-4">
-          Today's suggestion
-        </h2>
-        {recLoading ? (
-          <div className="rounded-[14px] border p-5" style={{ borderColor: 'var(--brand-border)' }}>
-            <Skeleton className="h-4 w-32 mb-3" />
-            <Skeleton className="h-3 w-48 mb-2" />
-            <Skeleton className="h-3 w-40" />
-          </div>
-        ) : rec && rec.outfits?.length > 0 ? (
-          <div
-            className="rounded-[14px] border p-5"
-            style={{ borderColor: 'var(--brand-border)' }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <CloudSun className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {rec.weather && `${Math.round(rec.weather.tempC)}°C · ${rec.weather.condition} · `}
-                {rec.location}
-              </span>
-            </div>
-            <p className="text-sm font-medium mb-1">
-              {rec.outfits[0].items?.map((i) => i.name).join(', ') || 'Outfit suggestion'}
-            </p>
-            {rec.outfits[0].note && (
-              <p className="text-xs text-muted-foreground mb-3">{rec.outfits[0].note}</p>
             )}
-            <Button asChild size="sm" variant="secondary">
-              <Link to="/recommendations">
-                See all suggestions <ArrowRight className="h-3 w-3 ml-1" />
-              </Link>
-            </Button>
+
+            {/* Style profile */}
+            <div className="rounded-2xl p-6 sm:p-7" style={card}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: MUTED }}>
+                  Style profile
+                </h2>
+                <Link to="/profile" className="text-xs" style={{ color: ACCENT }}>
+                  Edit
+                </Link>
+              </div>
+              {styleVibes.length === 0 && favColors.length === 0 && occasions.length === 0 ? (
+                <p className="text-sm" style={{ color: MUTED }}>
+                  No preferences set yet.{' '}
+                  <Link to="/profile" className="underline" style={{ color: INK }}>
+                    Add some
+                  </Link>{' '}
+                  to get better recommendations.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {styleVibes.map((v) => (
+                    <Badge key={v} variant="secondary" className="capitalize">{v}</Badge>
+                  ))}
+                  {favColors.map((c) => (
+                    <Badge key={c} variant="outline" className="capitalize">{c}</Badge>
+                  ))}
+                  {occasions.map((o) => (
+                    <Badge key={o} variant="secondary" className="capitalize">{o}</Badge>
+                  ))}
+                </div>
+              )}
+              {neverWorn.length > 0 && (
+                <p className="text-xs mt-4" style={{ color: MUTED }}>
+                  Never worn:{' '}
+                  {neverWorn.map((i) => i.name).join(', ')}
+                  {wardrobe.filter((i) => !allWornIds.has(i._id)).length > 2 &&
+                    ` +${wardrobe.filter((i) => !allWornIds.has(i._id)).length - 2} more`}
+                </p>
+              )}
+            </div>
           </div>
-        ) : (
-          <div
-            className="rounded-[14px] border p-5"
-            style={{ borderColor: 'var(--brand-border)' }}
-          >
-            <p className="text-sm text-muted-foreground mb-3">
-              Add items to your wardrobe to get daily outfit suggestions.
-            </p>
-            <Button asChild size="sm" variant="secondary">
-              <Link to="/closet">Go to Closet</Link>
-            </Button>
+
+          {/* Right sidebar */}
+          <div className="space-y-6">
+            {/* Recommendation teaser — highlighted */}
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: MUTED }}>
+                Today's suggestion
+              </h2>
+              {recLoading ? (
+                <div className="rounded-2xl p-6" style={card}>
+                  <Skeleton className="h-4 w-32 mb-3" />
+                  <Skeleton className="h-3 w-48 mb-2" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ) : rec && rec.outfits?.length > 0 ? (
+                <div
+                  className="rounded-2xl p-6"
+                  style={{
+                    background: `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DARK} 100%)`,
+                    boxShadow: '0 8px 24px rgba(93, 64, 40, 0.22)',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <CloudSun className="h-4 w-4 text-white/80 shrink-0" />
+                    <span className="text-sm text-white/80">
+                      {rec.weather && `${Math.round(rec.weather.tempC)}°C · ${rec.weather.condition} · `}
+                      {rec.location}
+                    </span>
+                  </div>
+                  <p className="text-base font-medium text-white mb-1">
+                    {rec.outfits[0].items?.map((i) => i.name).join(', ') || 'Outfit suggestion'}
+                  </p>
+                  {rec.outfits[0].note && (
+                    <p className="text-sm text-white/75 mb-4">{rec.outfits[0].note}</p>
+                  )}
+                  <Button asChild size="sm" style={{ background: '#fffaf3', color: ACCENT_DARK }}>
+                    <Link to="/recommendations">
+                      See all suggestions <ArrowRight className="h-3 w-3 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-2xl p-6" style={card}>
+                  <p className="text-sm mb-3" style={{ color: MUTED }}>
+                    Add items to your wardrobe to get daily outfit suggestions.
+                  </p>
+                  <Button asChild size="sm" style={{ background: ACCENT, color: '#fffaf3' }}>
+                    <Link to="/closet">Go to Closet</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Weekly activity */}
+            <div className="rounded-2xl p-6" style={card}>
+              <h2 className="text-xs font-semibold uppercase tracking-widest mb-5" style={{ color: MUTED }}>
+                This week
+              </h2>
+              <div className="flex justify-between">
+                {weekDays.map(({ label, isToday, hasOutfit }) => (
+                  <div key={label} className="flex flex-col items-center gap-2">
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{
+                        background: isToday ? ACCENT_DARK : hasOutfit ? ACCENT : SOFT_TINT,
+                      }}
+                    />
+                    <span
+                      className="text-[10px] font-medium"
+                      style={{ color: isToday ? INK : MUTED }}
+                    >
+                      {label[0]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

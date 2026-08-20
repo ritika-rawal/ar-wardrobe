@@ -25,7 +25,11 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-sm mx-auto mt-16 p-6 bg-white rounded-lg shadow">
+    <div
+      className="min-h-[calc(100vh-56px)]"
+      style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+    >
+    <div className="max-w-sm mx-auto pt-16 p-6 bg-white rounded-lg shadow">
       <h1 className="text-2xl font-semibold mb-4">Log in</h1>
       <form onSubmit={handleSubmit} className="space-y-3">
         <input
@@ -56,6 +60,7 @@ export default function Login() {
       <p className="text-sm text-slate-500 mt-4">
         No account? <Link to="/register" className="text-indigo-600">Register</Link>
       </p>
+    </div>
     </div>
   );
 }

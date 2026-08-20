@@ -89,6 +89,10 @@ export default function TryOn() {
   }
 
   return (
+    <div
+      className="min-h-[calc(100vh-56px)]"
+      style={{ background: 'linear-gradient(180deg, #f4e9d9 0%, #ece0cb 100%)' }}
+    >
     <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="md:col-span-2">
         <h1 className="text-2xl font-semibold mb-4">Live AR Try-On</h1>
@@ -185,6 +189,7 @@ export default function TryOn() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

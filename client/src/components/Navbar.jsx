@@ -44,14 +44,17 @@ export default function Navbar() {
   return (
     <>
       <nav
-        className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm"
-        style={{ borderBottom: '1px solid var(--brand-border)' }}
+        className="sticky top-0 z-40 backdrop-blur-md"
+        style={{
+          background: 'rgba(250, 246, 238, 0.85)',
+          borderBottom: '1px solid rgba(18, 38, 31, 0.08)',
+        }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-12 sm:h-13">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
           <Link
             to={user ? '/dashboard' : '/'}
             className="text-xs font-semibold tracking-[0.18em] uppercase"
-            style={{ color: 'var(--brand-black)', letterSpacing: '0.18em' }}
+            style={{ color: 'var(--brand-emerald-dark)', letterSpacing: '0.18em' }}
           >
             VIRTUAL WARDROBE
           </Link>
@@ -68,10 +71,11 @@ export default function Navbar() {
                       to={l.to}
                       className="transition-colors"
                       style={{
-                        color: active ? 'var(--brand-black)' : 'var(--brand-muted)',
+                        color: active ? 'var(--brand-emerald-dark)' : 'var(--brand-muted-sage)',
                         textDecoration: active ? 'underline' : 'none',
                         textUnderlineOffset: '3px',
                         textDecorationThickness: '1px',
+                        textDecorationColor: 'var(--brand-emerald)',
                       }}
                     >
                       {l.label}
@@ -81,7 +85,7 @@ export default function Navbar() {
                 <button
                   onClick={handleLogout}
                   className="text-sm transition-colors"
-                  style={{ color: 'var(--brand-muted)' }}
+                  style={{ color: 'var(--brand-muted-sage)' }}
                 >
                   Logout
                 </button>
@@ -92,7 +96,7 @@ export default function Navbar() {
                 className="md:hidden flex items-center justify-center w-8 h-8"
                 onClick={() => setOpen((v) => !v)}
                 aria-label="Toggle menu"
-                style={{ color: 'var(--brand-black)' }}
+                style={{ color: 'var(--brand-emerald-dark)' }}
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -112,8 +116,9 @@ export default function Navbar() {
           />
           {/* Sheet */}
           <div
-            className="fixed bottom-0 left-0 right-0 z-50 bg-white"
+            className="fixed bottom-0 left-0 right-0 z-50"
             style={{
+              background: 'var(--brand-parchment)',
               borderRadius: 'var(--brand-radius-lg) var(--brand-radius-lg) 0 0',
               animation: 'sheet-up 220ms ease',
               paddingBottom: 'env(safe-area-inset-bottom, 16px)',
@@ -122,16 +127,16 @@ export default function Navbar() {
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <span
                 className="text-xs font-semibold tracking-[0.18em] uppercase"
-                style={{ color: 'var(--brand-black)' }}
+                style={{ color: 'var(--brand-emerald-dark)' }}
               >
                 VIRTUAL WARDROBE
               </span>
-              <button onClick={close} aria-label="Close menu" style={{ color: 'var(--brand-muted)' }}>
+              <button onClick={close} aria-label="Close menu" style={{ color: 'var(--brand-muted-sage)' }}>
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div
-              style={{ borderBottom: '1px solid var(--brand-border)', marginBottom: '8px' }}
+              style={{ borderBottom: '1px solid rgba(43, 31, 39, 0.08)', marginBottom: '8px' }}
             />
             <nav className="flex flex-col px-5 pb-4">
               {visibleLinks.map((l) => {
@@ -143,10 +148,11 @@ export default function Navbar() {
                     onClick={close}
                     className="py-3 text-base font-medium transition-colors"
                     style={{
-                      color: active ? 'var(--brand-black)' : 'var(--brand-muted)',
+                      color: active ? 'var(--brand-emerald-dark)' : 'var(--brand-muted-sage)',
                       textDecoration: active ? 'underline' : 'none',
                       textUnderlineOffset: '3px',
                       textDecorationThickness: '1px',
+                      textDecorationColor: 'var(--brand-emerald)',
                     }}
                   >
                     {l.label}
@@ -154,12 +160,12 @@ export default function Navbar() {
                 );
               })}
               <div
-                style={{ borderTop: '1px solid var(--brand-border)', margin: '8px 0' }}
+                style={{ borderTop: '1px solid rgba(43, 31, 39, 0.08)', margin: '8px 0' }}
               />
               <button
                 onClick={handleLogout}
                 className="py-3 text-base font-medium text-left transition-colors"
-                style={{ color: 'var(--brand-muted)' }}
+                style={{ color: 'var(--brand-muted-sage)' }}
               >
                 Logout
               </button>
